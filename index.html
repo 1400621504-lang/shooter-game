@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="俯角射击">
+  <meta name="theme-color" content="#111111">
+  <title>俯角射击</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+  <link rel="icon" sizes="192x192" href="icon-192.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #111;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      position: fixed;
+      top: 0; left: 0;
+      /* 安全区：刘海屏 / 底部横条适配 */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/VirtualJoystick.js?v=3"></script>
+  <script src="js/AudioManager.js?v=3"></script>
+  <script src="js/ParticlePool.js?v=3"></script>
+  <script src="js/BulletPool.js?v=3"></script>
+  <script src="js/Player.js?v=3"></script>
+  <script src="js/EnemyManager.js?v=3"></script>
+  <script src="js/Boss.js?v=3"></script>
+  <script src="js/BgmManager.js?v=3"></script>
+  <script src="js/main.js?v=3"></script>
+</body>
+</html>
