@@ -1,4 +1,6 @@
 .DS_Store
 *.pyc
 /__pycache__
-.claude/settings.local.json
+.claude/
+node_modules/
+package-lock.json
