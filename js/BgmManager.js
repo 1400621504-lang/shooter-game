@@ -65,18 +65,14 @@ class BgmManager {
     this._bossMode = isBoss;
     if (isBoss) {
       for (const a of this.audios) { a.pause(); }
-      if (this.playing && !this._muted) {
-        this._bossAudio.currentTime = 0;
-        this._bossAudio.play().catch(() => {});
-      }
+      this._bossAudio.currentTime = 0;
+      this._bossAudio.play().catch(() => {});
     } else {
       this._bossAudio.pause();
       this._bossAudio.currentTime = 0;
-      if (this.playing) {
-        const a = this.audios[this.currentIdx];
-        a.currentTime = 0;
-        a.play().catch(() => {});
-      }
+      const a = this.audios[this.currentIdx];
+      a.currentTime = 0;
+      a.play().catch(() => {});
     }
   }
 
@@ -102,7 +98,7 @@ class BgmManager {
     }
     const a = this.audios[this.currentIdx];
     a.currentTime = 0;
-    a.play().catch(() => { this.playing = false; });
+    a.play().catch(() => {});
   }
 
   stop() {
