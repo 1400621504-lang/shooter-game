@@ -2540,7 +2540,7 @@ const RUNE_DATA = {
   geliya: {
     name: '歌利亚巨人',
     skillName: '巨人血统',
-    desc: '被动技能\n击杀Boss：生命上限+10%\n当前生命+10% · 体型+10%\n无限叠加',
+    desc: '被动技能\n初始：最大生命+50% · 体型+50%\n击杀Boss：最大生命+10% · 体型+10%\n无限叠加',
     passive: true
   },
   danbainaixi: {
@@ -2641,7 +2641,7 @@ class Pet {
       this._dashY = player.y;
       this._dashTrail = [];
       // 冲刺期间无敌
-      player.invulnTimer = Math.max(player.invulnTimer, this.skillTimer + 0.1);
+      player.invulnTimer = Math.max(player.invulnTimer, this.skillTimer + 0.3);
       // 伤害路径敌人
       for (const e of enemies) {
         if (!e.active) continue;
