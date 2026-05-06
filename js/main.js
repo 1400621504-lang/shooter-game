@@ -34,6 +34,8 @@ function resize() {
   canvas.style.width = sw + 'px';
   canvas.style.height = sh + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  moveJoy.updateLayout(sw, sh);
+  shootJoy.updateLayout(sw, sh);
 }
 
 // ── 输入 ──
@@ -68,7 +70,7 @@ let comboTimer = 0;
 let comboCount = 0;
 let bestCombo = 0;
 let gameTime = 0;
-let bossWaveActive = false;
+let autoShoot = false;          // 自动射击模式（手机专用）
 
 // ── 波次暂停计时 ──
 let wavePauseTimer = 0;
@@ -95,7 +97,6 @@ function setup() {
   waveNum = 0;
   waveMsg = '';
   waveMsgTimer = 0;
-  bossWaveActive = false;
   comboTimer = 0;
   comboCount = 0;
   bestCombo = 0;
@@ -356,11 +357,34 @@ function update(dt) {
       }
     }
 
+    // ── 自动射击（手机专用：右摇杆未触摸时自动瞄准最近敌人）──
+    if (autoShoot && !shootJoy.active && player.alive) {
+      const activeEnemies = enemies.getActive();
+      if (activeEnemies.length > 0) {
+        let nearest = activeEnemies[0];
+        let nearDist = dist(player.x, player.y, nearest.x, nearest.y);
+        for (const e of activeEnemies) {
+          const d = dist(player.x, player.y, e.x, e.y);
+          if (d < nearDist) { nearDist = d; nearest = e; }
+        }
+        if (nearDist < 600) {
+          player.angle = angleTo(player.x, player.y, nearest.x, nearest.y);
+          player.fire(dt, bullets);
+          if (Math.abs(player.fireTimer - FIRE_INTERVAL) < 0.001) {
+            audio.shoot();
+          }
+        }
+      }
+    }
+
     // 子弹
     bullets.update(dt, WORLD_SIZE);
 
     // 敌人
     enemies.update(dt, player);
+
+    // Boss BGM 自动切换（实时检测场上是否有 Boss）
+    if (bgm) bgm.setBossMode(enemies.getActive().some(e => e.isBoss));
 
     // Boss 技能更新
     updateBosses(enemies.pool, dt, player, particles, audio, gameTime);
@@ -374,11 +398,6 @@ function update(dt) {
 
     // 检查波次清空
     if (enemies.aliveCount === 0) {
-      // Boss 波结束 → 恢复普通 BGM
-      if (bossWaveActive) {
-        bgm.setBossMode(false);
-        bossWaveActive = false;
-      }
       const nextIsBoss = (waveNum + 1) >= 3 && (waveNum + 1) % 3 === 0;
       state = STATE.WAVE_PAUSE;
       wavePauseTimer = nextIsBoss ? 2.0 : 1.4;
@@ -402,10 +421,6 @@ function update(dt) {
         state = STATE.PLAYING;
         nextWave();
         const types = getBossTypesForWave(waveNum);
-        if (types.length > 0) {
-          bossWaveActive = true;
-          bgm.setBossMode(true);
-        }
         for (const t of types) {
           spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
         }
@@ -498,6 +513,15 @@ function drawHUD() {
   ctx.fillStyle = hpColor;
   ctx.fillRect(barX, barY, barW * hpRatio, barH);
 
+  // 自动射击状态指示（血条旁）
+  if (autoShoot) {
+    ctx.fillStyle = '#4CAF50';
+    ctx.font = `bold ${Math.round(8 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('AUTO', barX + barW + 6, barY);
+  }
+
   // 波次消息 (中央)
   if (waveMsgTimer > 0) {
     const alpha = waveMsgTimer > 0.5 ? 1 : waveMsgTimer / 0.5;
@@ -515,7 +539,7 @@ function drawHUD() {
     const bx = sw / 2 - 80 * s;
     const by = sh - 22 * s;
     const bw = 160 * s;
-    const btnSz = 20 * s;
+    const btnSz = isDesktop ? 20 * s : Math.max(36, 32 * s);
     const btnGap = 8 * s;
     // 进度条背景
     ctx.globalAlpha = 0.3;
@@ -556,6 +580,26 @@ function drawHUD() {
     ctx.globalAlpha = 1;
   }
 
+  // ── 自动射击切换按钮（左下角，仅触屏）──
+  if (!isDesktop) {
+    const asSize = Math.max(44, 40 * s);
+    const asX = 14;
+    const asY = sh - asSize - 14;
+    _autoShootBtn = { x: asX, y: asY, w: asSize, h: asSize };
+    ctx.fillStyle = autoShoot ? 'rgba(76,175,80,0.7)' : 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = autoShoot ? '#4CAF50' : 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    _roundRect(ctx, asX, asY, asSize, asSize, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(9 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(autoShoot ? 'A·射击' : '手·动', asX + asSize / 2, asY + asSize / 2);
+    ctx.globalAlpha = 1;
+  }
+
   ctx.restore();
 }
 
@@ -581,6 +625,24 @@ function drawStartScreen() {
   ctx.fillStyle = '#aaa';
   ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.fillText('左手移动  ·  右手射击', sw / 2, sh / 2 - 20 * s);
+
+  // 移动端触控区域提示
+  if (!isDesktop) {
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#4FC3F7';
+    ctx.fillRect(0, 0, sw / 2, sh);
+    ctx.fillStyle = '#FF5252';
+    ctx.fillRect(sw / 2, 0, sw / 2, sh);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('移动', sw * 0.25, sh * 0.06);
+    ctx.fillText('瞄准', sw * 0.75, sh * 0.06);
+    ctx.fillText('左下角可切换自动射击', sw / 2, sh / 2 + (isIOS && !isStandalone ? 100 : 80) * s);
+    ctx.globalAlpha = 1;
+  }
 
   // BGM 选歌 — 顶部居中
   {
@@ -629,8 +691,12 @@ function drawPauseOverlay() {
   ctx.font = `${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   const lines = [isDesktop ? 'ESC 继续' : '触摸屏幕继续'];
   if (bgm) {
-    lines.push('M 静音/播放 BGM');
-    lines.push('← → 切歌  ♪ ' + bgm.currentName);
+    if (isDesktop) {
+      lines.push('M 静音/播放 BGM');
+      lines.push('← → 切歌  ♪ ' + bgm.currentName);
+    } else {
+      lines.push('♪ ' + bgm.currentName);
+    }
   }
   lines.forEach((l, i) => ctx.fillText(l, sw / 2, sh / 2 + 25 * s + i * 22 * s));
 }
@@ -757,6 +823,14 @@ function onTouchStart(e) {
   // 海克斯符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
+    // 自动射击按钮（左下角）
+    if (!isDesktop && _autoShootBtn) {
+      const b = _autoShootBtn;
+      if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
+        autoShoot = !autoShoot;
+        return;
+      }
+    }
     // 符文技能按钮
     if (rune && rune._skillBtn && !rune.cfg.passive) {
       const b = rune._skillBtn;
@@ -818,6 +892,7 @@ const keys = {};
 let mouseX = 0, mouseY = 0;
 let mouseDown = false;
 let isDesktop = false; // 桌面模式：禁止自动暂停
+let _autoShootBtn = null; // 自动射击按钮触控热区
 
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
@@ -831,17 +906,18 @@ window.addEventListener('keydown', e => {
     if (state === STATE.PLAYING) { state = STATE.PAUSED; pauseTimer = 0; }
     else { state = STATE.PLAYING; }
   }
-  // ← → 切 BGM, M 静音
+  // ← → 切 BGM, M 静音, F 自动射击
   // E 触发符文技能（被动符文忽略）
   if (e.key === 'e' && rune && !rune.cfg.passive && state === STATE.PLAYING) {
     e.preventDefault();
     rune.activate(player, enemies.getActive(), particles, audio);
   }
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'm') {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'm' || e.key === 'f') {
     e.preventDefault();
     if (e.key === 'ArrowLeft') bgm.prev();
     else if (e.key === 'ArrowRight') bgm.next();
-    else bgm.toggleMute();
+    else if (e.key === 'm') bgm.toggleMute();
+    else if (e.key === 'f') { autoShoot = !autoShoot; }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -998,9 +1074,10 @@ function drawRuneSelect() {
 function drawRuneSkillBtn() {
   if (!rune || rune.cfg.passive) return;
   const s = uiScale();
-  const btnSize = 40 * s;
+  const btnSize = Math.round(isDesktop ? 40 * s : Math.max(44, 40 * s));
+  // 手机版在右上角（避开射击摇杆），桌面版在右侧中央
   const bx = sw - btnSize - 16;
-  const by = sh / 2 - btnSize / 2;
+  const by = !isDesktop ? Math.round(70 * s) : sh / 2 - btnSize / 2;
 
   // 记录按钮位置
   rune._skillBtn = { x: bx, y: by, w: btnSize, h: btnSize };

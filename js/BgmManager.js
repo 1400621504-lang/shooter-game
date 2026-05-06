@@ -22,11 +22,13 @@ class BgmManager {
       a.volume = this._bgmVolume;
       a.loop = false;
       a.preload = 'auto';
+      a.load();
       a.addEventListener('ended', () => this._randomNext());
     }
     this._bossAudio.volume = this._bossVolume;
     this._bossAudio.loop = true;
     this._bossAudio.preload = 'auto';
+    this._bossAudio.load();
   }
 
   get currentName() {
