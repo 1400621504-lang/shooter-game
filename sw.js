@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shooter-v8';
+const CACHE_NAME = 'shooter-v9';
 const URLS = [
   './',
   'index.html',
@@ -6,6 +6,7 @@ const URLS = [
   'icon-180.png',
   'icon-192.png',
   'icon-512.png',
+  'logo.png',
   // 3 首 BGM（预缓存加速）
   'bgm/不再曼波.mp3',
   'bgm/打火基.mp3',

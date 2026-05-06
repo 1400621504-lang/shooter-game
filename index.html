@@ -2673,9 +2673,10 @@ let logoImg = null;
 let sw, sh, dpr;
 
 function resize() {
+  const nw = window.innerWidth, nh = window.innerHeight;
+  if (nw === sw && nh === sh) return;
   dpr = window.devicePixelRatio || 1;
-  sw = window.innerWidth;
-  sh = window.innerHeight;
+  sw = nw; sh = nh;
   canvas.width = sw * dpr;
   canvas.height = sh * dpr;
   canvas.style.width = sw + 'px';
@@ -2787,10 +2788,10 @@ function getMoveAngle() {
 
 // ── 开始游戏 ──
 function startGame(devWave) {
-  audio.init();
-  audio._initHissAudios();
   requestFullscreen();
   setup();
+  audio.init();
+  audio._initHissAudios();
   bgm.play();
   const targetWave = devWave || startWave;
   if (targetWave >= 6 && !rune) {
@@ -2910,6 +2911,7 @@ function checkEnemyPlayer() {
         if (!player.alive) {
           state = STATE.OVER;
           overTimer = 0;
+          if (bgm) bgm.stop();
           audio.explosion();
           particles.emit(player.x, player.y, {
             count: 40,
