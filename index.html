@@ -2504,137 +2504,36 @@ class Pet {
 
   </script>
   <script>
-// BGM 管理器 — Web Audio API 播放，兼容移动端
+// BGM 管理器 — HTMLAudioElement 播放，兼容移动端
 
 const BGM_VOLUME = 0.38;
 const BOSS_BGM_VOLUME = 0.32;
 const BGM_PLAYLIST_NAMES = ['不再曼波', '打火基'];
-const BGM_URLS = ['bgm/不再曼波.mp3', 'bgm/打火基.mp3'];
-const BOSS_BGM_URL = 'bgm/boss战bgm.mp3';
 
 class BgmManager {
   constructor() {
+    this.audios = [
+      new Audio('bgm/不再曼波.mp3'),
+      new Audio('bgm/打火基.mp3'),
+    ];
+    this._bossAudio = new Audio('bgm/boss战bgm.mp3');
+    this._bossAudio.loop = true;
+    this._bossAudio.preload = 'auto';
+    this._bossAudio.volume = BOSS_BGM_VOLUME;
     this.currentIdx = 0;
     this.playing = false;
     this._bossMode = false;
     this._muted = false;
     this._bgmVolume = BGM_VOLUME;
     this._bossVolume = BOSS_BGM_VOLUME;
-    this._audioCtx = null;
-    this._gainNode = null;
-    this._source = null;
 
-    // 轨道状态：null=未加载, ArrayBuffer=已取回未解码, AudioBuffer=已就绪
-    this._tracks = [null, null];
-    this._bossTrack = null;
-    this._bossRawData = null; // decodeAudioData 失败时兜底
-    this._bossAudioEl = null; // HTMLAudioElement 兜底
-    this._playQueued = false;
-
-    // 记录普通 BGM 播放进度，Boss 战时保存、战后继续
-    this._savedBgmOffset = 0;
-
-    // 启动预加载
-    this._preload();
-  }
-
-  // ── 预加载：fetch 原始数据 ──
-
-  async _preload() {
-    for (let i = 0; i < BGM_URLS.length; i++) this._fetchTrack(i);
-    this._fetchBoss();
-  }
-
-  async _fetchTrack(idx) {
-    try {
-      const resp = await fetch(BGM_URLS[idx]);
-      if (!resp.ok) return;
-      this._tracks[idx] = await resp.arrayBuffer();
-      if (this._audioCtx) this._decodeTrack(idx);
-    } catch (_) {}
-  }
-
-  async _fetchBoss() {
-    try {
-      const resp = await fetch(BOSS_BGM_URL);
-      if (!resp.ok) return;
-      const raw = await resp.arrayBuffer();
-      this._bossRawData = raw;
-      this._bossTrack = raw;
-      if (this._audioCtx) this._decodeBoss();
-    } catch (_) {}
-  }
-
-  // ── 解码 ──
-
-  async _decodeTrack(idx) {
-    if (!this._audioCtx || !this._tracks[idx] || !(this._tracks[idx] instanceof ArrayBuffer)) return;
-    try {
-      this._tracks[idx] = await this._audioCtx.decodeAudioData(this._tracks[idx]);
-    } catch (_) { this._tracks[idx] = null; }
-    this._checkQueued();
-  }
-
-  async _decodeBoss() {
-    if (!this._audioCtx || !this._bossTrack || !(this._bossTrack instanceof ArrayBuffer)) return;
-    try {
-      this._bossTrack = await this._audioCtx.decodeAudioData(this._bossTrack);
-    } catch (_) {
-      this._bossTrack = null;
-      // decodeAudioData 失败，用 HTMLAudioElement 兜底
-      if (this._bossRawData && !this._bossAudioEl) {
-        const blob = new Blob([this._bossRawData], { type: 'audio/mpeg' });
-        const url = URL.createObjectURL(blob);
-        const el = new Audio(url);
-        el.loop = true;
-        el.volume = this._muted ? 0 : (this._bossMode ? this._bossVolume : this._bossVolume);
-        el.addEventListener('ended', () => { el.currentTime = 0; el.play().catch(() => {}); });
-        this._bossAudioEl = el;
-      }
-    }
-    this._checkQueued();
-  }
-
-  // 解码所有待解码数据（setAudioContext 时调用）
-  _decodeAll() {
-    for (let i = 0; i < BGM_URLS.length; i++) {
-      if (this._tracks[i] instanceof ArrayBuffer) this._decodeTrack(i);
-    }
-    if (this._bossTrack instanceof ArrayBuffer) this._decodeBoss();
-  }
-
-  // ── 播放队列 ──
-
-  _checkQueued() {
-    if (!this._playQueued) return;
-    if (this._bossMode) {
-      if (this._bossTrack instanceof AudioBuffer || this._bossAudioEl) {
-        this._playQueued = false;
-        this._doPlay();
-      }
-    } else {
-      if (this._tracks[this.currentIdx] instanceof AudioBuffer) {
-        this._playQueued = false;
-        this._doPlay();
-      }
+    for (const a of this.audios) {
+      a.volume = this._bgmVolume;
+      a.loop = false;
+      a.preload = 'auto';
+      a.addEventListener('ended', () => this._randomNext());
     }
   }
-
-  // ── AudioContext 关联（main.js 在用户手势后调用）──
-
-  setAudioContext(ctx) {
-    if (this._audioCtx) return;
-    this._audioCtx = ctx;
-    this._gainNode = ctx.createGain();
-    this._gainNode.gain.value = this._bgmVolume;
-    this._gainNode.connect(ctx.destination);
-    // 解码已取回但未解码的数据
-    this._decodeAll();
-    // 尝试恢复之前排队的播放
-    this._checkQueued();
-  }
-
-  // ── 属性 ──
 
   get currentName() {
     if (this._bossMode) return (this._muted ? '[静音] ' : '') + '⚔ Boss 战 ♪';
@@ -2644,150 +2543,103 @@ class BgmManager {
   get muted() { return this._muted || false; }
 
   get progress() {
-    if (!this._source) return 0;
-    const buf = this._bossMode ? this._bossTrack : this._tracks[this.currentIdx];
-    if (!buf || !buf.duration) return 0;
-    const elapsed = this._audioCtx ? (this._audioCtx.currentTime - this._startTime) : 0;
-    return (elapsed % buf.duration) / buf.duration;
+    if (this._bossMode) return 0;
+    const a = this.audios[this.currentIdx];
+    if (!a || !a.duration || !isFinite(a.duration)) return 0;
+    return a.currentTime / a.duration;
   }
 
   get isBossMode() { return this._bossMode; }
 
-  // ── 控制 ──
-
   toggleMute() {
     this._muted = !this._muted;
-    if (this._gainNode) this._gainNode.gain.value = this._muted ? 0 : this._bgmVolume;
-    if (this._bossAudioEl) this._bossAudioEl.volume = this._muted ? 0 : this._bossVolume;
+    const v = this._muted ? 0 : this._bgmVolume;
+    for (const a of this.audios) { a.volume = v; }
+    this._bossAudio.volume = this._muted ? 0 : this._bossVolume;
+    if (this._muted && this._bossMode) { this._bossAudio.pause(); }
+    else if (!this._muted && this._bossMode) { this._bossAudio.play().catch(() => {}); }
   }
 
   setBossMode(isBoss) {
     if (isBoss === this._bossMode) return;
-
+    this._bossMode = isBoss;
     if (isBoss) {
-      // 进入 Boss 战：保存当前普通 BGM 进度
-      if (this._source && this._audioCtx) {
-        const buf = this._tracks[this.currentIdx];
-        if (buf instanceof AudioBuffer && buf.duration > 0) {
-          const elapsed = this._audioCtx.currentTime - this._startTime;
-          this._savedBgmOffset = elapsed % buf.duration;
-        }
+      for (const a of this.audios) { a.pause(); }
+      if (this.playing && !this._muted) {
+        this._bossAudio.currentTime = 0;
+        this._bossAudio.play().catch(() => {});
+      }
+    } else {
+      this._bossAudio.pause();
+      this._bossAudio.currentTime = 0;
+      if (this.playing) {
+        const a = this.audios[this.currentIdx];
+        a.currentTime = 0;
+        a.play().catch(() => {});
       }
     }
-
-    this._bossMode = isBoss;
-    this._stopSource();
-    if (this.playing) this._doPlay();
   }
 
   setBgmVolume(v) {
     this._bgmVolume = v;
-    if (this._gainNode && !this._muted) this._gainNode.gain.value = v;
+    if (!this._muted) {
+      for (const a of this.audios) { a.volume = v; }
+    }
   }
 
   setBossVolume(v) {
     this._bossVolume = v;
-    if (this._bossAudioEl && this._bossMode) this._bossAudioEl.volume = this._muted ? 0 : v;
+    this._bossAudio.volume = this._muted ? 0 : v;
   }
 
   play() {
     if (this.playing) return;
     this.playing = true;
-    this._doPlay();
+    if (this._bossMode && !this._muted) {
+      this._bossAudio.currentTime = 0;
+      this._bossAudio.play().catch(() => {});
+      return;
+    }
+    const a = this.audios[this.currentIdx];
+    a.currentTime = 0;
+    a.play().catch(() => { this.playing = false; });
   }
 
   stop() {
     this.playing = false;
     this._bossMode = false;
-    this._playQueued = false;
-    this._stopSource();
+    this._bossAudio.pause();
+    this._bossAudio.currentTime = 0;
+    for (const a of this.audios) {
+      a.pause();
+      a.currentTime = 0;
+    }
   }
 
   setSong(idx) {
     if (this._bossMode) return;
     const wasPlaying = this.playing;
-    this._stopSource();
-    this.currentIdx = ((idx % BGM_PLAYLIST_NAMES.length) + BGM_PLAYLIST_NAMES.length) % BGM_PLAYLIST_NAMES.length;
-    if (wasPlaying) this._doPlay();
+    for (const a of this.audios) { a.pause(); a.currentTime = 0; }
+    this.currentIdx = ((idx % this.audios.length) + this.audios.length) % this.audios.length;
+    if (wasPlaying) {
+      const a = this.audios[this.currentIdx];
+      a.play().catch(() => {});
+    }
   }
 
   next() { this.setSong(this.currentIdx + 1); }
   prev() { this.setSong(this.currentIdx - 1); }
 
   _randomNext() {
-    const total = BGM_PLAYLIST_NAMES.length;
-    if (total <= 1) return;
+    if (this._bossMode) return;
     let next;
-    do { next = Math.floor(Math.random() * total); }
-    while (next === this.currentIdx);
+    const total = this.audios.length;
+    if (total <= 1) { next = 0; }
+    else {
+      do { next = Math.floor(Math.random() * total); }
+      while (next === this.currentIdx);
+    }
     this.setSong(next);
-  }
-
-  _stopSource() {
-    try { if (this._source) { this._source.onended = null; this._source.stop(); } } catch (_) {}
-    this._source = null;
-    // 也停下 HTMLAudioElement 兜底
-    if (this._bossAudioEl) { this._bossAudioEl.pause(); }
-  }
-
-  _doPlay() {
-    if (!this._audioCtx || !this.playing) return;
-
-    // 每次尝试都重置队列标记，避免旧标记残留导致随机重播
-    this._playQueued = false;
-
-    if (this._bossMode) {
-      // Boss 模式：优先 Web Audio，失败时用 HTMLAudioElement 兜底
-      if (this._bossTrack instanceof AudioBuffer) {
-        this._stopSource();
-        const vol = this._muted ? 0 : this._bossVolume;
-        if (this._gainNode) this._gainNode.gain.value = vol;
-        try {
-          const src = this._audioCtx.createBufferSource();
-          src.buffer = this._bossTrack;
-          src.loop = true;
-          src.connect(this._gainNode);
-          src.start(0);
-          this._source = src;
-          this._startTime = this._audioCtx.currentTime;
-          return;
-        } catch (_) {}
-      }
-      // 兜底：HTMLAudioElement
-      if (this._bossAudioEl) {
-        this._stopSource();
-        this._bossAudioEl.volume = this._muted ? 0 : this._bossVolume;
-        this._bossAudioEl.currentTime = 0;
-        this._bossAudioEl.play().catch(() => {});
-        return;
-      }
-      // 都没有就队列等待
-      this._playQueued = true;
-      return;
-    }
-
-    const buf = this._tracks[this.currentIdx];
-    if (!(buf instanceof AudioBuffer)) {
-      this._playQueued = true;
-      return;
-    }
-
-    this._stopSource();
-
-    const vol = this._muted ? 0 : this._bgmVolume;
-    if (this._gainNode) this._gainNode.gain.value = vol;
-
-    try {
-      const src = this._audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-      src.connect(this._gainNode);
-      const offset = this._savedBgmOffset;
-      this._savedBgmOffset = 0;
-      src.start(0, offset);
-      this._source = src;
-      this._startTime = this._audioCtx.currentTime - offset;
-    } catch (_) {}
   }
 }
 
@@ -2847,6 +2699,11 @@ let bgm;
 let rune = null;
 let runeChosen = false;
 let runeSelectVisible = false;
+let startWave = 1;
+let _devWaveBtns = [];
+let _runeAvailable = [];
+let _devDrafting = false;
+let _devDraftNeeded = 0;
 
 // ── 相机 ──
 let cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
@@ -2929,20 +2786,39 @@ function getMoveAngle() {
 }
 
 // ── 开始游戏 ──
-function startGame() {
+function startGame(devWave) {
   audio.init();
-  // 解锁移动端音频（iOS 需要明确 resume）
-  if (audio.ctx && audio.ctx.state === 'suspended') {
-    audio.ctx.resume();
-  }
-  // 将 AudioContext 传给 BGM 管理器（必须在 setup() 之前，因为 setup 会新建 audio）
-  if (audio.ctx && bgm) bgm.setAudioContext(audio.ctx);
-  audio._initHissAudios(); // 预加载哈气
+  audio._initHissAudios();
   requestFullscreen();
   setup();
   bgm.play();
+  const targetWave = devWave || startWave;
+  if (targetWave >= 6 && !rune) {
+    const skipped = [6, 9, 12].filter(w => w < targetWave).length;
+    if (skipped > 0) {
+      _runeAvailable = ['geliya', 'danbainaixi', 'quanpingshenfa'];
+      _devDraftNeeded = skipped;
+      _devDrafting = true;
+      runeSelectVisible = true;
+      state = STATE.START;
+      return;
+    }
+  }
+  _startGamePlay(targetWave);
+}
+
+function _startGamePlay(targetWave) {
   state = STATE.PLAYING;
+  if (targetWave > 1) waveNum = targetWave - 1;
   nextWave();
+  spawnBossesForCurrentWave();
+}
+
+function spawnBossesForCurrentWave() {
+  const types = getBossTypesForWave(waveNum);
+  for (const t of types) {
+    spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
+  }
 }
 
 // ── 下一波 ──
@@ -3441,6 +3317,49 @@ function drawStartScreen() {
   ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.fillText('左手移动  ·  右手射击', sw / 2, sh / 2 - 20 * s);
 
+  // ── 开发版波次选择 ──
+  {
+    const wy = sh / 2 - 42 * s;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.round(15 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('🔧 选择起始波次：第 ' + startWave + ' 波', sw / 2, wy);
+    // 减号
+    ctx.fillStyle = startWave > 1 ? '#FF9800' : '#444';
+    const btnMinus = { x: sw / 2 - 90 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    _devWaveBtns[0] = btnMinus;
+    _roundRect(ctx, btnMinus.x, btnMinus.y, btnMinus.w, btnMinus.h, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('−', btnMinus.x + btnMinus.w / 2, btnMinus.y + btnMinus.h / 2);
+    // 加号
+    ctx.fillStyle = startWave < 20 ? '#FF9800' : '#444';
+    const btnPlus = { x: sw / 2 + 58 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    _devWaveBtns[1] = btnPlus;
+    _roundRect(ctx, btnPlus.x, btnPlus.y, btnPlus.w, btnPlus.h, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText('+', btnPlus.x + btnPlus.w / 2, btnPlus.y + btnPlus.h / 2);
+    // 快捷跳转按钮
+    const jumpWaves = [1, 3, 6, 9, 12, 15];
+    const jumpY = wy + 20 * s;
+    _devWaveBtns[2] = [];
+    for (let j = 0; j < jumpWaves.length; j++) {
+      const jx = sw / 2 + (j - (jumpWaves.length - 1) / 2) * 38 * s;
+      const btn = { x: jx - 16 * s, y: jumpY, w: 32 * s, h: 18 * s, wave: jumpWaves[j] };
+      _devWaveBtns[2].push(btn);
+      ctx.fillStyle = startWave === jumpWaves[j] ? '#FFD700' : 'rgba(255,255,255,0.15)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      _roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = startWave === jumpWaves[j] ? '#000' : '#ccc';
+      ctx.font = `bold ${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.fillText(jumpWaves[j], btn.x + btn.w / 2, btn.y + btn.h / 2);
+    }
+  }
+
   // 移动端触控区域提示
   if (!isDesktop) {
     ctx.globalAlpha = 0.12;
@@ -3554,7 +3473,12 @@ function render() {
   ctx.clearRect(0, 0, sw, sh);
 
   if (state === STATE.START) {
-    drawStartScreen();
+    if (_devDrafting && runeSelectVisible) {
+      drawStartScreen();
+      drawRuneSelect();
+    } else {
+      drawStartScreen();
+    }
     return;
   }
 
@@ -3646,12 +3570,17 @@ function onTouchStart(e) {
   e.preventDefault();
 
   // 优先处理：游戏开始/重新开始
-  if (state === STATE.START) { startGame(); return; }
-  if (state === STATE.OVER) { startGame(); return; }
-
-  // 海克斯符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
+  }
+  for (const t of e.changedTouches) {
+    if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) return;
+  }
+  if (state === STATE.START && !_devDrafting) { startGame(); return; }
+  if (state === STATE.OVER) { startGame(); return; }
+
+  // 自动射击/符文技能/BGM 按钮
+  for (const t of e.changedTouches) {
     // 自动射击按钮（左下角）
     if (!isDesktop && _autoShootBtn) {
       const b = _autoShootBtn;
@@ -3752,13 +3681,15 @@ canvas.addEventListener('mousedown', e => {
     }
   }
   if (state === STATE.START) {
+    // 波次选择按钮
+    if (_handleDevWaveClick(e.clientX, e.clientY)) return;
     // 点击顶部切歌
     if (e.clientY < 100) {
       if (bgm) bgm.next();
       return;
     }
     isDesktop = true;
-    startGame();
+    if (!_devDrafting) startGame();
     return;
   }
   if (state === STATE.OVER) {
@@ -3937,6 +3868,33 @@ function drawRuneSkillBtn() {
   ctx.restore();
 }
 
+// ── 开发版波次选择点击处理 ──
+function _handleDevWaveClick(cx, cy) {
+  if (_devWaveBtns[0]) {
+    const b = _devWaveBtns[0];
+    if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+      if (startWave > 1) startWave--;
+      return true;
+    }
+  }
+  if (_devWaveBtns[1]) {
+    const b = _devWaveBtns[1];
+    if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+      if (startWave < 20) startWave++;
+      return true;
+    }
+  }
+  if (_devWaveBtns[2]) {
+    for (const btn of _devWaveBtns[2]) {
+      if (cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h) {
+        startWave = btn.wave;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // 海克斯符文选择点击处理
 function _handleRuneClick(cx, cy) {
   if (!runeSelectVisible || !ctx._runeSelectRects) return false;
@@ -3945,7 +3903,20 @@ function _handleRuneClick(cx, cy) {
       rune = new Pet(r.key);
       runeChosen = true;
       runeSelectVisible = false;
-      // 继续波次推进
+      // 开发版草稿模式：跳关时自动补符文
+      if (_devDrafting) {
+        _devDraftNeeded--;
+        _runeAvailable = _runeAvailable.filter(k => k !== r.key);
+        if (_devDraftNeeded > 0 && _runeAvailable.length > 1) {
+          runeSelectVisible = true;
+          return true;
+        }
+        _devDrafting = false;
+        _devDraftNeeded = 0;
+        _startGamePlay(startWave);
+        return true;
+      }
+      // 正常游戏流程：继续波次推进
       state = STATE.PLAYING;
       nextWave();
       const types = getBossTypesForWave(waveNum);

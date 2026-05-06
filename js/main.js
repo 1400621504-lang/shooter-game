@@ -52,11 +52,17 @@ let bgm;
 let rune = null;
 let runeChosen = false;
 let runeSelectVisible = false;
+let startWave = 1;
+let _devWaveBtns = [];
+let _runeAvailable = [];
+let _devDrafting = false;
+let _devDraftNeeded = 0;
 
 // ── 相机 ──
 let cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
 let shakeAmt = 0;
 let shakeDur = 0;
+const CAMERA_ZOOM = 1.5;
 
 // ── 游戏状态 ──
 const STATE = { START: 'start', PLAYING: 'playing', WAVE_PAUSE: 'wavePause', PAUSED: 'paused', OVER: 'over' };
@@ -102,7 +108,7 @@ function setup() {
   bestCombo = 0;
   gameTime = 0;
   overTimer = 0;
-  if (!runeChosen) { rune = null; runeSelectVisible = false; }
+  rune = null; runeChosen = false; runeSelectVisible = false;
 }
 
 // 请求全屏（横屏时去掉浏览器 chrome）
@@ -133,20 +139,39 @@ function getMoveAngle() {
 }
 
 // ── 开始游戏 ──
-function startGame() {
+function startGame(devWave) {
   audio.init();
-  // 解锁移动端音频（iOS 需要明确 resume）
-  if (audio.ctx && audio.ctx.state === 'suspended') {
-    audio.ctx.resume();
-  }
-  // 将 AudioContext 传给 BGM 管理器（必须在 setup() 之前，因为 setup 会新建 audio）
-  if (audio.ctx && bgm) bgm.setAudioContext(audio.ctx);
-  audio._initHissAudios(); // 预加载哈气
+  audio._initHissAudios();
   requestFullscreen();
   setup();
   bgm.play();
+  const targetWave = devWave || startWave;
+  if (targetWave >= 6 && !rune) {
+    const skipped = [6, 9, 12].filter(w => w < targetWave).length;
+    if (skipped > 0) {
+      _runeAvailable = ['geliya', 'danbainaixi', 'quanpingshenfa'];
+      _devDraftNeeded = skipped;
+      _devDrafting = true;
+      runeSelectVisible = true;
+      state = STATE.START;
+      return;
+    }
+  }
+  _startGamePlay(targetWave);
+}
+
+function _startGamePlay(targetWave) {
   state = STATE.PLAYING;
+  if (targetWave > 1) waveNum = targetWave - 1;
   nextWave();
+  spawnBossesForCurrentWave();
+}
+
+function spawnBossesForCurrentWave() {
+  const types = getBossTypesForWave(waveNum);
+  for (const t of types) {
+    spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
+  }
 }
 
 // ── 下一波 ──
@@ -645,6 +670,49 @@ function drawStartScreen() {
   ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.fillText('左手移动  ·  右手射击', sw / 2, sh / 2 - 20 * s);
 
+  // ── 开发版波次选择 ──
+  {
+    const wy = sh / 2 - 42 * s;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.round(15 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('🔧 选择起始波次：第 ' + startWave + ' 波', sw / 2, wy);
+    // 减号
+    ctx.fillStyle = startWave > 1 ? '#FF9800' : '#444';
+    const btnMinus = { x: sw / 2 - 90 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    _devWaveBtns[0] = btnMinus;
+    _roundRect(ctx, btnMinus.x, btnMinus.y, btnMinus.w, btnMinus.h, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('−', btnMinus.x + btnMinus.w / 2, btnMinus.y + btnMinus.h / 2);
+    // 加号
+    ctx.fillStyle = startWave < 20 ? '#FF9800' : '#444';
+    const btnPlus = { x: sw / 2 + 58 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    _devWaveBtns[1] = btnPlus;
+    _roundRect(ctx, btnPlus.x, btnPlus.y, btnPlus.w, btnPlus.h, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText('+', btnPlus.x + btnPlus.w / 2, btnPlus.y + btnPlus.h / 2);
+    // 快捷跳转按钮
+    const jumpWaves = [1, 3, 6, 9, 12, 15];
+    const jumpY = wy + 20 * s;
+    _devWaveBtns[2] = [];
+    for (let j = 0; j < jumpWaves.length; j++) {
+      const jx = sw / 2 + (j - (jumpWaves.length - 1) / 2) * 38 * s;
+      const btn = { x: jx - 16 * s, y: jumpY, w: 32 * s, h: 18 * s, wave: jumpWaves[j] };
+      _devWaveBtns[2].push(btn);
+      ctx.fillStyle = startWave === jumpWaves[j] ? '#FFD700' : 'rgba(255,255,255,0.15)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      _roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = startWave === jumpWaves[j] ? '#000' : '#ccc';
+      ctx.font = `bold ${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.fillText(jumpWaves[j], btn.x + btn.w / 2, btn.y + btn.h / 2);
+    }
+  }
+
   // 移动端触控区域提示
   if (!isDesktop) {
     ctx.globalAlpha = 0.12;
@@ -758,7 +826,12 @@ function render() {
   ctx.clearRect(0, 0, sw, sh);
 
   if (state === STATE.START) {
-    drawStartScreen();
+    if (_devDrafting && runeSelectVisible) {
+      drawStartScreen();
+      drawRuneSelect();
+    } else {
+      drawStartScreen();
+    }
     return;
   }
 
@@ -770,6 +843,13 @@ function render() {
   }
   const rCamX = cam.x + ox;
   const rCamY = cam.y + oy;
+
+  // 缩放视野（1.5x = 看到更广区域）
+  ctx.save();
+  const z = 1 / CAMERA_ZOOM;
+  ctx.translate(sw / 2, sh / 2);
+  ctx.scale(z, z);
+  ctx.translate(-sw / 2, -sh / 2);
 
   drawBg();
 
@@ -794,7 +874,9 @@ function render() {
   // 子弹
   bullets.render(ctx, rCamX, rCamY, sw, sh);
 
-  // 摇杆 UI
+  ctx.restore();
+
+  // 摇杆 UI（不受缩放影响）
   moveJoy.render(ctx);
   shootJoy.render(ctx);
 
@@ -841,12 +923,17 @@ function onTouchStart(e) {
   e.preventDefault();
 
   // 优先处理：游戏开始/重新开始
-  if (state === STATE.START) { startGame(); return; }
-  if (state === STATE.OVER) { startGame(); return; }
-
-  // 海克斯符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
+  }
+  for (const t of e.changedTouches) {
+    if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) return;
+  }
+  if (state === STATE.START && !_devDrafting) { startGame(); return; }
+  if (state === STATE.OVER) { startGame(); return; }
+
+  // 自动射击/符文技能/BGM 按钮
+  for (const t of e.changedTouches) {
     // 自动射击按钮（左下角）
     if (!isDesktop && _autoShootBtn) {
       const b = _autoShootBtn;
@@ -860,11 +947,12 @@ function onTouchStart(e) {
       const b = rune._skillBtn;
       if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
         rune.activate(player, enemies.getActive(), particles, audio, getMoveAngle());
-  for (const t of e.changedTouches) {
+        return;
+      }
+    }
     if (bgm) {
       for (const btn of [bgm._btnLeft, bgm._btnRight]) {
         if (!btn) continue;
-        const s2 = uiScale();
         if (t.clientX >= btn.x && t.clientX <= btn.x + btn.w &&
             t.clientY >= btn.y && t.clientY <= btn.y + btn.h) {
           if (btn.action === 'mute') bgm.toggleMute();
@@ -946,13 +1034,15 @@ canvas.addEventListener('mousedown', e => {
     }
   }
   if (state === STATE.START) {
+    // 波次选择按钮
+    if (_handleDevWaveClick(e.clientX, e.clientY)) return;
     // 点击顶部切歌
     if (e.clientY < 100) {
       if (bgm) bgm.next();
       return;
     }
     isDesktop = true;
-    startGame();
+    if (!_devDrafting) startGame();
     return;
   }
   if (state === STATE.OVER) {
@@ -1012,7 +1102,7 @@ function drawRuneSelect() {
   const cardW = sw * 0.28;
   const cardH = sh * 0.55;
   const gap = sw * 0.03;
-  const startX = sw / 2 - (cardW * 1.5 + gap);
+  const startX = sw / 2 - cardW - gap;
 
   ctx._runeSelectRects = [];
 
@@ -1131,6 +1221,33 @@ function drawRuneSkillBtn() {
   ctx.restore();
 }
 
+// ── 开发版波次选择点击处理 ──
+function _handleDevWaveClick(cx, cy) {
+  if (_devWaveBtns[0]) {
+    const b = _devWaveBtns[0];
+    if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+      if (startWave > 1) startWave--;
+      return true;
+    }
+  }
+  if (_devWaveBtns[1]) {
+    const b = _devWaveBtns[1];
+    if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+      if (startWave < 20) startWave++;
+      return true;
+    }
+  }
+  if (_devWaveBtns[2]) {
+    for (const btn of _devWaveBtns[2]) {
+      if (cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h) {
+        startWave = btn.wave;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // 海克斯符文选择点击处理
 function _handleRuneClick(cx, cy) {
   if (!runeSelectVisible || !ctx._runeSelectRects) return false;
@@ -1139,7 +1256,20 @@ function _handleRuneClick(cx, cy) {
       rune = new Pet(r.key);
       runeChosen = true;
       runeSelectVisible = false;
-      // 继续波次推进
+      // 开发版草稿模式：跳关时自动补符文
+      if (_devDrafting) {
+        _devDraftNeeded--;
+        _runeAvailable = _runeAvailable.filter(k => k !== r.key);
+        if (_devDraftNeeded > 0 && _runeAvailable.length > 1) {
+          runeSelectVisible = true;
+          return true;
+        }
+        _devDrafting = false;
+        _devDraftNeeded = 0;
+        _startGamePlay(startWave);
+        return true;
+      }
+      // 正常游戏流程：继续波次推进
       state = STATE.PLAYING;
       nextWave();
       const types = getBossTypesForWave(waveNum);
