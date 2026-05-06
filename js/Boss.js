@@ -335,6 +335,7 @@ function _updateHissBoss(e, dt, player, particles, audio, gameTime) {
       if (bossHissImg && bossHissImg.complete && bossHissImg.naturalWidth > 0) e.img = bossHissImg;
       e.hissAngle = Math.atan2(player.y - e.y, player.x - e.x);
       audio.playHiss();
+      hissNotifyTimer = 0.8;
       particles.emit(e.x, e.y, {
         count: 10, minSpeed: 30, maxSpeed: 100,
         minLife: 0.1, maxLife: 0.3,
@@ -1209,5 +1210,16 @@ function renderBossNames(ctx, pool, camX, camY, sw, sh) {
     const label = e.bossName + ' Lv.' + (e.bossLevel || 1);
     ctx.fillText(label, sx, sy - e.radius - 8);
     ctx.shadowBlur = 0;
+    // 哈气提醒（boss 图标下方）
+    if (hissNotifyTimer > 0 && e.hissActive) {
+      const alpha = hissNotifyTimer > 0.3 ? 1 : hissNotifyTimer / 0.3;
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.fillStyle = '#FF9800';
+      ctx.font = `bold ${Math.round(10 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText('耄耋哈气声音', sx, sy + e.radius + 4);
+      ctx.globalAlpha = 1;
+      ctx.textBaseline = 'bottom';
+    }
   }
 }

@@ -13,6 +13,15 @@ const isStandalone = window.navigator.standalone || window.matchMedia('(display-
 let aimedEnemyIdx = -1;
 let aimedEnemyTimer = 0;
 
+// ── 启动画面 Logo ──
+let logoImg = null;
+(function() {
+  const img = new Image();
+  img.onload = () => { logoImg = img; };
+  img.onerror = () => {};
+  img.src = 'logo.png';
+})();
+
 // ── 屏幕尺寸 ──
 let sw, sh, dpr;
 
@@ -54,10 +63,12 @@ let score = 0;
 let waveNum = 0;
 let waveMsg = '';
 let waveMsgTimer = 0;
+let hissNotifyTimer = 0;
 let comboTimer = 0;
 let comboCount = 0;
 let bestCombo = 0;
 let gameTime = 0;
+let bossWaveActive = false;
 
 // ── 波次暂停计时 ──
 let wavePauseTimer = 0;
@@ -84,6 +95,7 @@ function setup() {
   waveNum = 0;
   waveMsg = '';
   waveMsgTimer = 0;
+  bossWaveActive = false;
   comboTimer = 0;
   comboCount = 0;
   bestCombo = 0;
@@ -113,9 +125,9 @@ function uiScale() {
 function startGame() {
   audio.init();
   audio._initHissAudios(); // 预加载哈气
-  bgm.play();
   requestFullscreen();
   setup();
+  bgm.play();
   state = STATE.PLAYING;
   nextWave();
 }
@@ -249,6 +261,7 @@ function update(dt) {
 
   // 波次消息计时
   if (waveMsgTimer > 0) waveMsgTimer -= dt;
+  if (hissNotifyTimer > 0) hissNotifyTimer -= dt;
 
   if (state === STATE.PLAYING) {
     // 摇杆
@@ -361,6 +374,11 @@ function update(dt) {
 
     // 检查波次清空
     if (enemies.aliveCount === 0) {
+      // Boss 波结束 → 恢复普通 BGM
+      if (bossWaveActive) {
+        bgm.setBossMode(false);
+        bossWaveActive = false;
+      }
       const nextIsBoss = (waveNum + 1) >= 3 && (waveNum + 1) % 3 === 0;
       state = STATE.WAVE_PAUSE;
       wavePauseTimer = nextIsBoss ? 2.0 : 1.4;
@@ -384,6 +402,10 @@ function update(dt) {
         state = STATE.PLAYING;
         nextWave();
         const types = getBossTypesForWave(waveNum);
+        if (types.length > 0) {
+          bossWaveActive = true;
+          bgm.setBossMode(true);
+        }
         for (const t of types) {
           spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
         }
@@ -543,11 +565,18 @@ function drawStartScreen() {
   ctx.fillStyle = '#151515';
   ctx.fillRect(0, 0, sw, sh);
 
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.round(40 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('耄耋大乱斗', sw / 2, sh / 2 - 80 * s);
+  // Logo 图片（保持宽高比，宽度 ≈ 240px）
+  if (logoImg) {
+    const lw = 240 * s;
+    const lh = logoImg.height / logoImg.width * lw;
+    ctx.drawImage(logoImg, sw / 2 - lw / 2, sh / 2 - 80 * s - lh / 2, lw, lh);
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(40 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('耄耋大乱斗', sw / 2, sh / 2 - 80 * s);
+  }
 
   ctx.fillStyle = '#aaa';
   ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;

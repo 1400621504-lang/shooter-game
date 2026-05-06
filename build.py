@@ -41,6 +41,7 @@ pet_uris = {
     'danbainaixi': b64img(os.path.join(ROOT, 'build-imgs/pet/danbainaixi.png')),
     'quanpingshenfa': b64img(os.path.join(ROOT, 'build-imgs/pet/quanpingshenfa.png')),
 }
+logo_uri = b64img(os.path.join(ROOT, 'logo.png'))
 hiss_audio_uri = b64audio(os.path.join(ROOT, 'boss-imgs/hiss_trim.mp3'))
 
 # ── 读取 JS 源码 ──
@@ -206,6 +207,10 @@ new_pet_iife = f"""(function loadRuneImgs() {{
 }})();"""
 
 scripts['Pet.js'] = pjs.replace(old_pet_iife, new_pet_iife)
+
+# ── 修改 main.js — 换 logo ──
+mm = scripts['main.js']
+scripts['main.js'] = mm.replace("img.src = 'logo.png';", f"img.src = {repr(logo_uri)};")
 
 # ── 修改 AudioManager.js — 换 3 段 hiss 音频 ──
 am = scripts['AudioManager.js']

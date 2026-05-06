@@ -4,6 +4,7 @@ class AudioManager {
   constructor() {
     this.ctx = null;
     this.ready = false;
+    this._masterGain = null;
     this._hissAudios = null;
   }
 
@@ -12,6 +13,9 @@ class AudioManager {
     if (this.ready) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this._masterGain = this.ctx.createGain();
+      this._masterGain.gain.value = 1.0;
+      this._masterGain.connect(this.ctx.destination);
       this.ready = true;
     } catch (_) {}
   }
@@ -27,7 +31,7 @@ class AudioManager {
       gain.gain.setValueAtTime(vol, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this._masterGain);
       osc.start(t);
       osc.stop(t + dur);
     } catch (_) {}
@@ -52,9 +56,9 @@ class AudioManager {
     } catch (_) {}
   }
 
-  shoot()      { this._noise(0.04, 0.04); this._tone(900, 0.03, 'square', 0.03); }
-  hit()        { this._tone(220, 0.07, 'sawtooth', 0.06); }
-  explosion()  { this._noise(0.18, 0.07); this._tone(70, 0.15, 'triangle', 0.08); }
+  shoot()      { this._noise(0.04, 0.16); this._tone(900, 0.03, 'square', 0.12); }
+  hit()        { this._tone(220, 0.07, 'sawtooth', 0.24); }
+  explosion()  { this._noise(0.18, 0.28); this._tone(70, 0.15, 'triangle', 0.32); }
   playerHit()  { this._tone(120, 0.25, 'square', 0.1); this._tone(80, 0.3, 'triangle', 0.08); }
   waveClear()  {
     this._tone(523, 0.12, 'square', 0.06);
@@ -75,7 +79,7 @@ class AudioManager {
     this._initHissAudios();
     const src = this._hissAudios[Math.floor(Math.random() * 3)];
     const a = src.cloneNode(); // 每次新实例，避免浏览器节流
-    a.volume = 0.7;
+    a.volume = 1.0;
     a.play().catch(() => {});
   }
   // 坦克 Boss：导弹发射
