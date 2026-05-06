@@ -2,29 +2,27 @@
 
 const BGM_VOLUME = 0.08;
 
-const BGM_PLAYLIST = [
-  { name: '不再曼波', file: 'bgm/不再曼波.mp3' },
-  { name: '打火基',   file: 'bgm/打火基.mp3' },
-];
+const BGM_PLAYLIST_NAMES = ['不再曼波', '打火基'];
 
 class BgmManager {
   constructor() {
-    this.audios = [];
+    this.audios = [
+      new Audio('bgm/不再曼波.mp3'),
+      new Audio('bgm/打火基.mp3'),
+    ];
     this.currentIdx = 0;
     this.playing = false;
 
-    for (const s of BGM_PLAYLIST) {
-      const a = new Audio(s.file);
+    for (const a of this.audios) {
       a.volume = BGM_VOLUME;
       a.loop = false;
       a.preload = 'auto';
-      this.audios.push(a);
       a.addEventListener('ended', () => this._randomNext());
     }
   }
 
   get currentName() {
-    return (this.muted ? '[静音] ' : '') + BGM_PLAYLIST[this.currentIdx].name;
+    return (this.muted ? '[静音] ' : '') + BGM_PLAYLIST_NAMES[this.currentIdx];
   }
 
   get muted() { return this._muted || false; }
@@ -46,7 +44,7 @@ class BgmManager {
     this.playing = true;
     const a = this.audios[this.currentIdx];
     a.currentTime = 0;
-    a.play().catch(() => {});
+    a.play().catch(() => { this.playing = false; }); // 加载失败时静默
   }
 
   stop() {

@@ -38,6 +38,9 @@ let enemies;
 let particles;
 let audio;
 let bgm;
+let rune = null;
+let runeChosen = false;
+let runeSelectVisible = false;
 
 // ── 相机 ──
 let cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
@@ -86,6 +89,7 @@ function setup() {
   bestCombo = 0;
   gameTime = 0;
   overTimer = 0;
+  if (!runeChosen) { rune = null; runeSelectVisible = false; }
 }
 
 // 请求全屏（横屏时去掉浏览器 chrome）
@@ -108,6 +112,7 @@ function uiScale() {
 // ── 开始游戏 ──
 function startGame() {
   audio.init();
+  audio._initHissAudios(); // 预加载哈气
   bgm.play();
   requestFullscreen();
   setup();
@@ -119,12 +124,13 @@ function startGame() {
 function nextWave() {
   waveNum++;
   enemies.spawnWave(waveNum, cam.x, cam.y, sw, sh);
-  if (waveNum >= 3 && waveNum % 3 === 0) {
-    waveMsg = '⚠ BOSS ' + getBossName(waveNum) + ' 第 ' + waveNum + ' 波';
+  const types = getBossTypesForWave(waveNum);
+  if (types.length > 0) {
+    waveMsg = '⚠⚠ BOSS 来袭！ ' + types.map(t => getBossName(waveNum, t)).join(' · ') + ' — 第' + waveNum + '波';
   } else {
     waveMsg = '第 ' + waveNum + ' 波';
   }
-  waveMsgTimer = 1.5;
+  waveMsgTimer = 1.8;
 }
 
 // ── 碰 撞：子弹 vs 敌人 ──
@@ -154,6 +160,11 @@ function checkBulletHits() {
           comboCount++;
           comboTimer = 1.5;
           if (comboCount > bestCombo) bestCombo = comboCount;
+          // 海克斯符文回调
+          if (rune) {
+            if (e.isBoss) rune.onBossKill(player);
+            else rune.onMinionKill();
+          }
           audio.explosion();
           shakeAmt = 6;
           shakeDur = 0.08;
@@ -278,7 +289,7 @@ function update(dt) {
     // 双手同时离开 → 计时（仅触屏模式）
     if (!isDesktop && !moveJoy.active && !shootJoy.active) {
       pauseTimer += dt;
-      if (pauseTimer >= 0.5) {
+      if (pauseTimer >= 2.0) {
         state = STATE.PAUSED;
         pauseTimer = 0;
       }
@@ -341,6 +352,9 @@ function update(dt) {
     // Boss 技能更新
     updateBosses(enemies.pool, dt, player, particles, audio, gameTime);
 
+    // 符文更新
+    if (rune) rune.update(dt, player, enemies.pool);
+
     // 碰撞
     checkBulletHits();
     checkEnemyPlayer();
@@ -352,19 +366,27 @@ function update(dt) {
       wavePauseTimer = nextIsBoss ? 2.0 : 1.4;
       if (nextIsBoss) {
         audio.bossWarning();
-        // 直接显示波次消息，不用黑遮罩
-        waveMsg = '⚠ BOSS ' + getBossName(waveNum + 1) + ' 来了！';
-        waveMsgTimer = 2.0;
+        const types = getBossTypesForWave(waveNum + 1);
+        waveMsg = '⚠⚠ BOSS 登场！！ ' + types.map(t => getBossName(waveNum + 1, t)).join(' · ');
+        waveMsgTimer = 2.2;
       }
       audio.waveClear();
     }
   } else if (state === STATE.WAVE_PAUSE) {
-    wavePauseTimer -= dt;
-    if (wavePauseTimer <= 0) {
-      state = STATE.PLAYING;
-      nextWave();
-      if (waveNum >= 3 && waveNum % 3 === 0) {
-        spawnBoss(enemies.pool, waveNum, cam.x, cam.y, sw, sh);
+    // 击败第6波后触发海克斯符文选择
+    if (waveNum === 6 && !runeChosen && !runeSelectVisible) {
+      runeSelectVisible = true;
+      wavePauseTimer = 999; // 暂停波次推进
+    }
+    if (!runeSelectVisible) {
+      wavePauseTimer -= dt;
+      if (wavePauseTimer <= 0) {
+        state = STATE.PLAYING;
+        nextWave();
+        const types = getBossTypesForWave(waveNum);
+        for (const t of types) {
+          spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
+        }
       }
     }
   }
@@ -466,13 +488,15 @@ function drawHUD() {
     ctx.globalAlpha = 1;
   }
 
-  // 当前 BGM + 进度条（底部中）
+  // 当前 BGM + 进度条 + 触屏按钮（底部中）
   if (bgm) {
-    const bx = sw / 2 - 60 * s;
-    const by = sh - 18 * s;
-    const bw = 120 * s;
+    const bx = sw / 2 - 80 * s;
+    const by = sh - 22 * s;
+    const bw = 160 * s;
+    const btnSz = 20 * s;
+    const btnGap = 8 * s;
     // 进度条背景
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = '#333';
     ctx.fillRect(bx, by, bw, 3 * s);
     // 进度条
@@ -480,11 +504,33 @@ function drawHUD() {
     ctx.fillStyle = '#aaa';
     ctx.fillRect(bx, by, bw * bgm.progress, 3 * s);
     // 文字
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#666';
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#888';
     ctx.font = `${Math.round(10 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('♪ ' + bgm.currentName + '  ← →切歌', sw / 2, by - 4 * s);
+    ctx.fillText('♪ ' + bgm.currentName, sw / 2, by - 6 * s);
+    // 触屏按钮：静音 | 下一首
+    const btnY = by - btnSz - 4 * s;
+    const leftBtnX = sw / 2 - btnSz - btnGap / 2;
+    const rightBtnX = sw / 2 + btnGap / 2;
+    // 记录按钮位置供触控检测
+    bgm._btnLeft = { x: leftBtnX, y: btnY, w: btnSz, h: btnSz, action: 'mute' };
+    bgm._btnRight = { x: rightBtnX, y: btnY, w: btnSz, h: btnSz, action: 'next' };
+    // 静音按钮
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = bgm.muted ? '#F44336' : '#555';
+    ctx.fillRect(leftBtnX, btnY, btnSz, btnSz);
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(bgm.muted ? 'M' : '♪', leftBtnX + btnSz / 2, btnY + btnSz / 2);
+    // 下一首按钮
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#555';
+    ctx.fillRect(rightBtnX, btnY, btnSz, btnSz);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('»', rightBtnX + btnSz / 2, btnY + btnSz / 2);
     ctx.globalAlpha = 1;
   }
 
@@ -501,7 +547,7 @@ function drawStartScreen() {
   ctx.font = `bold ${Math.round(40 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('俯角射击', sw / 2, sh / 2 - 80 * s);
+  ctx.fillText('耄耋大乱斗', sw / 2, sh / 2 - 80 * s);
 
   ctx.fillStyle = '#aaa';
   ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
@@ -628,6 +674,9 @@ function render() {
   // 玩家
   player.render(ctx, rCamX, rCamY, sw, sh);
 
+  // 符文
+  if (rune) rune.render(ctx, player, rCamX, rCamY, sw, sh);
+
   // 子弹
   bullets.render(ctx, rCamX, rCamY, sw, sh);
 
@@ -637,6 +686,11 @@ function render() {
 
   // HUD
   drawHUD();
+
+  // 海克斯符文选择面板
+  if (runeSelectVisible) drawRuneSelect();
+  // 符文技能按钮
+  if (rune && state === STATE.PLAYING) drawRuneSkillBtn();
 
   // 暂停遮罩
   if (state === STATE.PAUSED) {
@@ -671,18 +725,45 @@ function loop(stamp) {
 // ── 触控 ──
 function onTouchStart(e) {
   e.preventDefault();
+  // 海克斯符文选择
+  for (const t of e.changedTouches) {
+    if (_handleRuneClick(t.clientX, t.clientY)) return;
+    // 符文技能按钮
+    if (rune && rune._skillBtn && !rune.cfg.passive) {
+      const b = rune._skillBtn;
+      if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
+        rune.activate(player, enemies.getActive(), particles, audio);
+        return;
+      }
+    }
+  }
   if (state === STATE.START) {
     startGame();
     return;
   }
   if (state === STATE.OVER) {
-    // 点任意位置重来
     startGame();
     return;
   }
+  // 检测 BGM 按钮点击
   for (const t of e.changedTouches) {
-    moveJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
-    shootJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
+    if (bgm) {
+      for (const btn of [bgm._btnLeft, bgm._btnRight]) {
+        if (!btn) continue;
+        const s2 = uiScale();
+        if (t.clientX >= btn.x && t.clientX <= btn.x + btn.w &&
+            t.clientY >= btn.y && t.clientY <= btn.y + btn.h) {
+          if (btn.action === 'mute') bgm.toggleMute();
+          else if (btn.action === 'next') bgm.next();
+          t._handled = true;
+          break;
+        }
+      }
+    }
+    if (!t._handled) {
+      moveJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
+      shootJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
+    }
   }
   audio.init();
 }
@@ -722,6 +803,11 @@ window.addEventListener('keydown', e => {
     else { state = STATE.PLAYING; }
   }
   // ← → 切 BGM, M 静音
+  // E 触发符文技能（被动符文忽略）
+  if (e.key === 'e' && rune && !rune.cfg.passive && state === STATE.PLAYING) {
+    e.preventDefault();
+    rune.activate(player, enemies.getActive(), particles, audio);
+  }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'm') {
     e.preventDefault();
     if (e.key === 'ArrowLeft') bgm.prev();
@@ -733,6 +819,16 @@ window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
 canvas.addEventListener('mousedown', e => {
   e.preventDefault();
+  // 海克斯符文选择
+  if (_handleRuneClick(e.clientX, e.clientY)) return;
+  // 符文技能按钮
+  if (rune && rune._skillBtn && !rune.cfg.passive) {
+    const b = rune._skillBtn;
+    if (e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h) {
+      rune.activate(player, enemies.getActive(), particles, audio);
+      return;
+    }
+  }
   if (state === STATE.START) {
     // 点击顶部切歌
     if (e.clientY < 100) {
@@ -766,6 +862,177 @@ canvas.addEventListener('mouseleave', () => { mouseDown = false; });
 // ── 注册 SW ──
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
+}
+
+// ── 圆角矩形辅助 ──
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ── 海克斯符文选择面板 ──
+function drawRuneSelect() {
+  const s = uiScale();
+  // 半透明遮罩
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(0, 0, sw, sh);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(28 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('击败 BOSS！选择海克斯符文', sw / 2, sh * 0.12);
+
+  const runeKeys = ['geliya', 'danbainaixi', 'quanpingshenfa'];
+  const cardW = sw * 0.28;
+  const cardH = sh * 0.55;
+  const gap = sw * 0.03;
+  const startX = sw / 2 - (cardW * 1.5 + gap);
+
+  ctx._runeSelectRects = [];
+
+  for (let i = 0; i < runeKeys.length; i++) {
+    const key = runeKeys[i];
+    const cfg = RUNE_DATA[key];
+    const cx = startX + i * (cardW + gap);
+    const cy = sh * 0.42;
+
+    ctx._runeSelectRects.push({ x: cx - cardW / 2, y: cy - cardH / 2, w: cardW, h: cardH, key: key });
+
+    // 卡片背景
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    _roundRect(ctx, cx - cardW / 2, cy - cardH / 2, cardW, cardH, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // 符文图片
+    const imgSize = cardW * 0.5;
+    const imgCY = cy - cardH * 0.15;
+    if (runeImgs[key]) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, imgCY, imgSize / 2 + 4, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(runeImgs[key], cx - imgSize / 2, imgCY - imgSize / 2, imgSize, imgSize);
+      ctx.restore();
+    } else {
+      // 图片未加载时的占位
+      const colors = { nailong: '#FF5722', caodiniu: '#4CAF50', sangbiao: '#FF9800' };
+      ctx.fillStyle = colors[key] || '#888';
+      ctx.beginPath();
+      ctx.arc(cx, imgCY, imgSize / 2 + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(imgSize * 0.5)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cfg.name[0], cx, imgCY);
+    }
+
+    // 名字
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(18 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText(cfg.name, cx, cy + cardH * 0.12);
+
+    // 技能名
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText(cfg.skillName, cx, cy + cardH * 0.22);
+
+    // 描述
+    ctx.fillStyle = '#aaa';
+    ctx.font = `${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    const descLines = cfg.desc.split('\n');
+    for (let d = 0; d < descLines.length; d++) {
+      ctx.fillText(descLines[d], cx, cy + cardH * 0.32 + d * 16 * s);
+    }
+  }
+
+  // 提示
+  ctx.fillStyle = '#888';
+  ctx.font = `${Math.round(13 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  ctx.fillText('点击卡片选择符文 · 仅此一次', sw / 2, sh * 0.78);
+}
+
+// 符文技能按钮（被动符文不显示）
+function drawRuneSkillBtn() {
+  if (!rune || rune.cfg.passive) return;
+  const s = uiScale();
+  const btnSize = 40 * s;
+  const bx = sw - btnSize - 16;
+  const by = sh / 2 - btnSize / 2;
+
+  // 记录按钮位置
+  rune._skillBtn = { x: bx, y: by, w: btnSize, h: btnSize };
+
+  const cd = rune.cooldownRatio;
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = cd > 0 ? '#555' : '#333';
+  ctx.strokeStyle = cd > 0 ? '#555' : '#FFD700';
+  ctx.lineWidth = 2;
+  _roundRect(ctx, bx, by, btnSize, btnSize, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // 冷却圆弧
+  if (cd > 0) {
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(bx + btnSize / 2, by + btnSize / 2, btnSize / 2 - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd));
+    ctx.stroke();
+    // 冷却数字
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(Math.ceil(rune.cooldownTimer) + 's', bx + btnSize / 2, by + btnSize / 2);
+  } else {
+    // 符文小图
+    if (runeImgs[rune.type]) {
+      ctx.drawImage(runeImgs[rune.type], bx + 4, by + 4, btnSize - 8, btnSize - 8);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(9 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('E', bx + btnSize / 2, by - 2);
+  }
+
+  ctx.restore();
+}
+
+// 海克斯符文选择点击处理
+function _handleRuneClick(cx, cy) {
+  if (!runeSelectVisible || !ctx._runeSelectRects) return false;
+  for (const r of ctx._runeSelectRects) {
+    if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
+      rune = new Pet(r.key);
+      runeChosen = true;
+      runeSelectVisible = false;
+      // 继续波次推进
+      state = STATE.PLAYING;
+      nextWave();
+      const types = getBossTypesForWave(waveNum);
+      for (const t of types) {
+        spawnBoss(enemies.pool, waveNum, t, cam.x, cam.y, sw, sh);
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 // ── 启动 ──

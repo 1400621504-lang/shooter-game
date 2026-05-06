@@ -8,6 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="耄耋大乱斗">
   <meta name="theme-color" content="#111111">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+  <link rel="manifest" href="manifest.json">
   <title>耄耋大乱斗</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2601,8 +2604,8 @@ class Pet {
     this._dashY = 0;
     this._dashTrail = [];
 
-    // 歌利亚巨人：叠加计数
-    this._stacks = 0;
+    // 歌利亚巨人：叠加计数（初始1层 = 30%基础加成）
+    this._stacks = this.type === 'geliya' ? 1 : 0;
   }
 
   activate(player, enemies, particles, audio) {
@@ -3261,6 +3264,7 @@ function update(dt) {
       if (_runeAvailable.length <= 1) {
         const lastRune = new Pet(_runeAvailable[0]);
         runes.push(lastRune);
+        if (_runeAvailable[0] === 'geliya') _applyGeliyaBase();
         runeSelectVisible = false;
         // 显示获取提示
         const cfg = RUNE_DATA[_runeAvailable[0]];
@@ -3941,12 +3945,21 @@ function drawRuneSkillBtns() {
   }
 }
 
+// 应用歌利亚巨人基础加成
+function _applyGeliyaBase() {
+  player.maxHp = Math.round(player.maxHp * 1.3);
+  player.hp = player.maxHp;
+  player.radius = Math.round(player.radius * 1.3);
+}
+
 // 海克斯符文选择点击处理
 function _handleRuneClick(cx, cy) {
   if (!runeSelectVisible || !ctx._runeSelectRects) return false;
   for (const r of ctx._runeSelectRects) {
     if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
-      runes.push(new Pet(r.key));
+      const newRune = new Pet(r.key);
+      runes.push(newRune);
+      if (r.key === 'geliya') _applyGeliyaBase();
       runeSelectVisible = false;
       // 继续波次推进
       state = STATE.PLAYING;

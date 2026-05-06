@@ -105,6 +105,9 @@ class EnemyManager {
       e.active = true;
       e.hitFlash = 0;
       e.rot = 0;
+      e.isBoss = false;
+      e.bossType = undefined;
+      e.defense = undefined;
       e.img = this._randomImg();
       return;
     }
@@ -176,7 +179,8 @@ class EnemyManager {
   damageAt(index, dmg) {
     const e = this.pool[index];
     if (!e || !e.active) return 0;
-    e.hp -= dmg;
+    const effectiveDmg = e.defense ? dmg * (1 - e.defense) : dmg;
+    e.hp -= effectiveDmg;
     e.hitFlash = 0.07;
     if (e.hp <= 0) {
       e.active = false;

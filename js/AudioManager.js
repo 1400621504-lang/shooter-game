@@ -78,6 +78,55 @@ class AudioManager {
     a.volume = 0.7;
     a.play().catch(() => {});
   }
+  // 坦克 Boss：导弹发射
+  missileLaunch() {
+    this._noise(0.12, 0.05);
+    this._tone(180, 0.25, 'sawtooth', 0.06);
+    this._tone(90, 0.35, 'triangle', 0.05);
+  }
+  // 坦克 Boss：环形炮击
+  tankShell() {
+    this._tone(50, 0.3, 'triangle', 0.1);
+    this._noise(0.15, 0.06);
+    this._tone(30, 0.4, 'sine', 0.08);
+  }
+  // 坦克 Boss：导弹爆炸
+  missileExplosion() {
+    this._noise(0.2, 0.08);
+    this._tone(60, 0.18, 'sawtooth', 0.07);
+  }
+  // 超人 Boss：高速冲刺
+  supermanDash() {
+    this._noise(0.08, 0.04);
+    this._tone(600, 0.12, 'sine', 0.04);
+    this._tone(1200, 0.08, 'sine', 0.03);
+  }
+  // 超人 Boss：闪避
+  supermanDodge() {
+    this._tone(800, 0.06, 'square', 0.03);
+    this._tone(400, 0.1, 'sine', 0.04);
+  }
+  // 飞机 Boss：弹幕倾泻
+  aircraftBarrage() {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        this._noise(0.03, 0.03);
+        this._tone(300 + Math.random() * 200, 0.04, 'square', 0.04);
+      }, i * 40);
+    }
+  }
+  // 飞机 Boss：导弹齐射
+  aircraftMissile() {
+    this._tone(150, 0.3, 'sawtooth', 0.05);
+    this._noise(0.15, 0.05);
+  }
+  // 飞机 Boss：俯冲
+  aircraftDive() {
+    this._tone(500, 0.15, 'sawtooth', 0.06);
+    this._tone(200, 0.25, 'triangle', 0.07);
+    this._noise(0.1, 0.04);
+  }
+
   // Boss 出场低音警报
   bossWarning() {
     this._tone(200, 0.3, 'sawtooth', 0.08);

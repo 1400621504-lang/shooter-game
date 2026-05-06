@@ -13,6 +13,8 @@ let imgDefault = null;
 let imgKill = null;
 let imgHurt = null;
 let imgStuck = null;
+// Boss 哈气时随机反应图（最高优先级）
+const imgBossHiss = [null, null, null];
 
 (function loadPlayerImgs() {
   const load = (src, onOk) => {
@@ -26,6 +28,9 @@ let imgStuck = null;
   load('player-imgs/player_kill.png', im => imgKill = im);
   load('player-imgs/player_hurt.png', im => imgHurt = im);
   load('player-imgs/player_stuck.png', im => imgStuck = im);
+  for (let i = 0; i < 3; i++) {
+    load('player-imgs/player_bosshiss_' + i + '.png', im => { imgBossHiss[i] = im; });
+  }
 })();
 
 class Player {
@@ -42,10 +47,12 @@ class Player {
     this.invulnTimer = 0;
     this.hitFlash = 0;
 
-    // 状态图计时器（优先级：kill > hurt > stuck > default）
+    // 状态图计时器（优先级：hurt > kill > bossHiss > stuck > default）
     this.killFlashTimer = 0;   // 击败小怪 0.5s
     this.hurtFlashTimer = 0;   // 受到攻击 0.88s
     this.stuckFlashTimer = 0;  // 攻击同目标超2s未击杀 0.88s
+    this.bossHissFlashTimer = 0;  // Boss 哈气 0.5s（最高优先级）
+    this._bossHissImg = null;     // 当前哈气反应图
   }
 
   update(dt, moveJoy, shootJoy, worldSize) {
@@ -70,6 +77,7 @@ class Player {
     this.killFlashTimer -= dt;
     this.hurtFlashTimer -= dt;
     this.stuckFlashTimer -= dt;
+    this.bossHissFlashTimer -= dt;
   }
 
   fire(dt, bulletPool) {
@@ -103,12 +111,23 @@ class Player {
     this.stuckFlashTimer = 0.88;
   }
 
+  // 由 Boss.js 调用，Boss 哈气时随机切换反应图
+  onBossHiss() {
+    this.bossHissFlashTimer = 0.75;
+    const loaded = imgBossHiss.filter(im => im != null);
+    if (loaded.length > 0) {
+      this._bossHissImg = loaded[Math.floor(Math.random() * loaded.length)];
+    }
+  }
+
   isInvulnerable() { return this.invulnTimer > 0; }
 
   // 当前应该显示的状态图（按优先级）
   _currentImg() {
-    if (this.killFlashTimer > 0 && imgKill) return imgKill;
+    // 优先级：hurt > kill > bossHiss > stuck > default
     if (this.hurtFlashTimer > 0 && imgHurt) return imgHurt;
+    if (this.killFlashTimer > 0 && imgKill) return imgKill;
+    if (this.bossHissFlashTimer > 0 && this._bossHissImg) return this._bossHissImg;
     if (this.stuckFlashTimer > 0 && imgStuck) return imgStuck;
     return imgDefault;
   }
@@ -122,9 +141,10 @@ class Player {
     ctx.save();
     ctx.translate(sx, sy);
 
-    // 圆形裁剪
+    // 圆形裁剪（Boss 哈气时放大两倍裁剪区域）
+    const clipR = this.bossHissFlashTimer > 0 ? r * 2 : r;
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.arc(0, 0, clipR, 0, Math.PI * 2);
     ctx.clip();
 
     const curImg = this._currentImg();
@@ -143,18 +163,26 @@ class Player {
       ctx.shadowColor = '#4FC3F7';
       ctx.shadowBlur = 12;
       // 如果是特殊状态，切换发光颜色
-      if (this.killFlashTimer > 0) {
-        ctx.shadowColor = '#FFEB3B';
-        ctx.shadowBlur = 18;
-      } else if (this.hurtFlashTimer > 0) {
+      if (this.hurtFlashTimer > 0) {
         ctx.shadowColor = '#F44336';
         ctx.shadowBlur = 14;
+      } else if (this.killFlashTimer > 0) {
+        ctx.shadowColor = '#FFEB3B';
+        ctx.shadowBlur = 18;
+      } else if (this.bossHissFlashTimer > 0) {
+        ctx.shadowColor = '#E91E63';
+        ctx.shadowBlur = 22;
       } else if (this.stuckFlashTimer > 0) {
         ctx.shadowColor = '#FF9800';
         ctx.shadowBlur = 14;
       }
 
-      ctx.drawImage(curImg, -r, -r, r * 2, r * 2);
+      // Boss 哈气时图片放大两倍，但不改变碰撞体积
+      if (this.bossHissFlashTimer > 0) {
+        ctx.drawImage(curImg, -r * 2, -r * 2, r * 4, r * 4);
+      } else {
+        ctx.drawImage(curImg, -r, -r, r * 2, r * 2);
+      }
       ctx.shadowBlur = 0;
     } else {
       // 降级：蓝色圆形
