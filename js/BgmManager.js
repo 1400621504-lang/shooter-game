@@ -21,6 +21,8 @@ class BgmManager {
     // 轨道状态：null=未加载, ArrayBuffer=已取回未解码, AudioBuffer=已就绪
     this._tracks = [null, null];
     this._bossTrack = null;
+    this._bossRawData = null; // decodeAudioData 失败时兜底
+    this._bossAudioEl = null; // HTMLAudioElement 兜底
     this._playQueued = false;
 
     // 启动预加载
@@ -47,7 +49,9 @@ class BgmManager {
     try {
       const resp = await fetch(BOSS_BGM_URL);
       if (!resp.ok) return;
-      this._bossTrack = await resp.arrayBuffer();
+      const raw = await resp.arrayBuffer();
+      this._bossRawData = raw;
+      this._bossTrack = raw;
       if (this._audioCtx) this._decodeBoss();
     } catch (_) {}
   }
@@ -66,7 +70,19 @@ class BgmManager {
     if (!this._audioCtx || !this._bossTrack || !(this._bossTrack instanceof ArrayBuffer)) return;
     try {
       this._bossTrack = await this._audioCtx.decodeAudioData(this._bossTrack);
-    } catch (_) { this._bossTrack = null; }
+    } catch (_) {
+      this._bossTrack = null;
+      // decodeAudioData 失败，用 HTMLAudioElement 兜底
+      if (this._bossRawData && !this._bossAudioEl) {
+        const blob = new Blob([this._bossRawData], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const el = new Audio(url);
+        el.loop = true;
+        el.volume = this._muted ? 0 : (this._bossMode ? this._bossVolume : this._bossVolume);
+        el.addEventListener('ended', () => { el.currentTime = 0; el.play().catch(() => {}); });
+        this._bossAudioEl = el;
+      }
+    }
     this._checkQueued();
   }
 
@@ -82,10 +98,16 @@ class BgmManager {
 
   _checkQueued() {
     if (!this._playQueued) return;
-    const buf = this._bossMode ? this._bossTrack : this._tracks[this.currentIdx];
-    if (buf instanceof AudioBuffer) {
-      this._playQueued = false;
-      this._doPlay();
+    if (this._bossMode) {
+      if (this._bossTrack instanceof AudioBuffer || this._bossAudioEl) {
+        this._playQueued = false;
+        this._doPlay();
+      }
+    } else {
+      if (this._tracks[this.currentIdx] instanceof AudioBuffer) {
+        this._playQueued = false;
+        this._doPlay();
+      }
     }
   }
 
@@ -127,6 +149,7 @@ class BgmManager {
   toggleMute() {
     this._muted = !this._muted;
     if (this._gainNode) this._gainNode.gain.value = this._muted ? 0 : this._bgmVolume;
+    if (this._bossAudioEl) this._bossAudioEl.volume = this._muted ? 0 : this._bossVolume;
   }
 
   setBossMode(isBoss) {
@@ -143,6 +166,7 @@ class BgmManager {
 
   setBossVolume(v) {
     this._bossVolume = v;
+    if (this._bossAudioEl && this._bossMode) this._bossAudioEl.volume = this._muted ? 0 : v;
   }
 
   play() {
@@ -181,6 +205,8 @@ class BgmManager {
   _stopSource() {
     try { if (this._source) { this._source.onended = null; this._source.stop(); } } catch (_) {}
     this._source = null;
+    // 也停下 HTMLAudioElement 兜底
+    if (this._bossAudioEl) { this._bossAudioEl.pause(); }
   }
 
   _doPlay() {
@@ -189,7 +215,37 @@ class BgmManager {
     // 每次尝试都重置队列标记，避免旧标记残留导致随机重播
     this._playQueued = false;
 
-    const buf = this._bossMode ? this._bossTrack : this._tracks[this.currentIdx];
+    if (this._bossMode) {
+      // Boss 模式：优先 Web Audio，失败时用 HTMLAudioElement 兜底
+      if (this._bossTrack instanceof AudioBuffer) {
+        this._stopSource();
+        const vol = this._muted ? 0 : this._bossVolume;
+        if (this._gainNode) this._gainNode.gain.value = vol;
+        try {
+          const src = this._audioCtx.createBufferSource();
+          src.buffer = this._bossTrack;
+          src.loop = true;
+          src.connect(this._gainNode);
+          src.start(0);
+          this._source = src;
+          this._startTime = this._audioCtx.currentTime;
+          return;
+        } catch (_) {}
+      }
+      // 兜底：HTMLAudioElement
+      if (this._bossAudioEl) {
+        this._stopSource();
+        this._bossAudioEl.volume = this._muted ? 0 : this._bossVolume;
+        this._bossAudioEl.currentTime = 0;
+        this._bossAudioEl.play().catch(() => {});
+        return;
+      }
+      // 都没有就队列等待
+      this._playQueued = true;
+      return;
+    }
+
+    const buf = this._tracks[this.currentIdx];
     if (!(buf instanceof AudioBuffer)) {
       this._playQueued = true;
       return;
@@ -197,7 +253,7 @@ class BgmManager {
 
     this._stopSource();
 
-    const vol = this._muted ? 0 : (this._bossMode ? this._bossVolume : this._bgmVolume);
+    const vol = this._muted ? 0 : this._bgmVolume;
     if (this._gainNode) this._gainNode.gain.value = vol;
 
     try {
