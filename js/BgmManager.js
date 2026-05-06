@@ -61,12 +61,14 @@ class BgmManager {
   }
 
   setBossMode(isBoss) {
+    console.log('[BGM] setBossMode(' + isBoss + ') _bossMode=' + this._bossMode + ' playing=' + this.playing + ' muted=' + this._muted);
     if (isBoss === this._bossMode) return;
     this._bossMode = isBoss;
     if (isBoss) {
       for (const a of this.audios) { a.pause(); }
+      console.log('[BGM] playing boss audio');
       this._bossAudio.currentTime = 0;
-      this._bossAudio.play().catch(() => {});
+      this._bossAudio.play().then(() => console.log('[BGM] boss audio OK')).catch(e => console.log('[BGM] boss audio FAIL', e));
     } else {
       this._bossAudio.pause();
       this._bossAudio.currentTime = 0;

@@ -384,7 +384,11 @@ function update(dt) {
     enemies.update(dt, player);
 
     // Boss BGM 自动切换（实时检测场上是否有 Boss）
-    if (bgm) bgm.setBossMode(enemies.getActive().some(e => e.isBoss));
+    if (bgm) {
+      const hasBoss = enemies.getActive().some(e => e.isBoss);
+      if (hasBoss !== bgm.isBossMode) console.log('[BGM] boss detected: ' + hasBoss + ' activeCount=' + enemies.getActive().length);
+      bgm.setBossMode(hasBoss);
+    }
 
     // Boss 技能更新
     updateBosses(enemies.pool, dt, player, particles, audio, gameTime);
