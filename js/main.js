@@ -125,6 +125,12 @@ function uiScale() {
 // ── 开始游戏 ──
 function startGame() {
   audio.init();
+  // 解锁移动端音频（iOS 需要明确 resume）
+  if (audio.ctx && audio.ctx.state === 'suspended') {
+    audio.ctx.resume();
+  }
+  // 将 AudioContext 传给 BGM 管理器
+  if (audio.ctx) bgm.setAudioContext(audio.ctx);
   audio._initHissAudios(); // 预加载哈气
   requestFullscreen();
   setup();
@@ -386,7 +392,6 @@ function update(dt) {
     // Boss BGM 自动切换（实时检测场上是否有 Boss）
     if (bgm) {
       const hasBoss = enemies.getActive().some(e => e.isBoss);
-      if (hasBoss !== bgm.isBossMode) console.log('[BGM] boss detected: ' + hasBoss + ' activeCount=' + enemies.getActive().length);
       bgm.setBossMode(hasBoss);
     }
 

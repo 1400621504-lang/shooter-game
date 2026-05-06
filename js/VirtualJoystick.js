@@ -5,6 +5,7 @@ class VirtualJoystick {
   constructor(side, maxRadius = 80) {
     this.side = side;
     this.maxRadius = maxRadius;
+    this._baseMaxRadius = maxRadius;
     this.deadZone = 0.15;
     this.touchId = null;
     this.active = false;
@@ -17,6 +18,11 @@ class VirtualJoystick {
     this.magnitude = 0;
     this.angle = 0;
     this.alpha = 0;
+  }
+
+  // 根据屏幕尺寸调整摇杆大小
+  updateLayout(sw, sh) {
+    this.maxRadius = clamp(Math.min(sw, sh) * 0.13, 60, 120);
   }
 
   // 尝试接管触摸，zone 判断在调用方做

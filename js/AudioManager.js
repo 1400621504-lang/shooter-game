@@ -13,6 +13,9 @@ class AudioManager {
     if (this.ready) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
       this._masterGain = this.ctx.createGain();
       this._masterGain.gain.value = 1.0;
       this._masterGain.connect(this.ctx.destination);
