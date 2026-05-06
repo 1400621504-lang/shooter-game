@@ -2600,6 +2600,9 @@ class Pet {
     this._dashX = 0;
     this._dashY = 0;
     this._dashTrail = [];
+
+    // 歌利亚巨人：叠加计数
+    this._stacks = 0;
   }
 
   activate(player, enemies, particles, audio) {
@@ -2679,6 +2682,7 @@ class Pet {
   // 歌利亚巨人 + 全凭身法：击杀Boss效果
   onBossKill(player) {
     if (this.type === 'geliya') {
+      this._stacks++;
       player.maxHp = Math.round(player.maxHp * 1.05);
       player.hp = Math.min(player.maxHp, Math.round(player.hp * 1.05) + 1);
       player.radius = Math.round(player.radius * 1.05);
@@ -2922,9 +2926,9 @@ let enemies;
 let particles;
 let audio;
 let bgm;
-let rune = null;
-let runeChosen = false;
+let runes = [];
 let runeSelectVisible = false;
+let _runeAvailable = []; // 当前可选符文列表
 
 // ── 相机 ──
 let cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
@@ -2973,7 +2977,7 @@ function setup() {
   bestCombo = 0;
   gameTime = 0;
   overTimer = 0;
-  if (!runeChosen) { rune = null; runeSelectVisible = false; }
+  runes = []; runeSelectVisible = false;
 }
 
 // 请求全屏（横屏时去掉浏览器 chrome）
@@ -3045,9 +3049,9 @@ function checkBulletHits() {
           comboTimer = 1.5;
           if (comboCount > bestCombo) bestCombo = comboCount;
           // 海克斯符文回调
-          if (rune) {
-            if (e.isBoss) rune.onBossKill(player);
-            else rune.onMinionKill();
+          for (const r of runes) {
+            if (e.isBoss) r.onBossKill(player);
+            else r.onMinionKill();
           }
           audio.explosion();
           shakeAmt = 6;
@@ -3225,7 +3229,7 @@ function update(dt) {
     updateBosses(enemies.pool, dt, player, particles, audio, gameTime);
 
     // 符文更新
-    if (rune) rune.update(dt, player, enemies.pool);
+    for (const r of runes) r.update(dt, player, enemies.pool);
 
     // 碰撞（玩家可能已在敌人/Boss攻击中死亡）
     if (!player.alive) return;
@@ -3246,10 +3250,28 @@ function update(dt) {
       audio.waveClear();
     }
   } else if (state === STATE.WAVE_PAUSE) {
-    // 击败第6波后触发海克斯符文选择
-    if (waveNum === 6 && !runeChosen && !runeSelectVisible) {
-      runeSelectVisible = true;
-      wavePauseTimer = 999; // 暂停波次推进
+    // 第6/9/12波触发海克斯符文选择
+    const runeWaves = [6, 9, 12];
+    if (runeWaves.includes(waveNum) && runes.length < 3 && !runeSelectVisible) {
+      // 计算剩余可选符文
+      const allKeys = ['geliya', 'danbainaixi', 'quanpingshenfa'];
+      const owned = runes.map(r => r.type);
+      _runeAvailable = allKeys.filter(k => !owned.includes(k));
+      // 只剩一个时自动获取
+      if (_runeAvailable.length <= 1) {
+        const lastRune = new Pet(_runeAvailable[0]);
+        runes.push(lastRune);
+        runeSelectVisible = false;
+        // 显示获取提示
+        const cfg = RUNE_DATA[_runeAvailable[0]];
+        waveMsg = '⚡ 获得最终符文：' + cfg.name + ' — ' + cfg.skillName;
+        waveMsgTimer = 2.5;
+        // 继续波次推进
+        wavePauseTimer = 0.3;
+      } else {
+        runeSelectVisible = true;
+        wavePauseTimer = 999;
+      }
     }
     if (!runeSelectVisible) {
       wavePauseTimer -= dt;
@@ -3548,7 +3570,7 @@ function render() {
   player.render(ctx, rCamX, rCamY, sw, sh);
 
   // 符文
-  if (rune) rune.render(ctx, player, rCamX, rCamY, sw, sh);
+  for (const r of runes) r.render(ctx, player, rCamX, rCamY, sw, sh);
 
   // 子弹
   bullets.render(ctx, rCamX, rCamY, sw, sh);
@@ -3563,7 +3585,7 @@ function render() {
   // 海克斯符文选择面板
   if (runeSelectVisible) drawRuneSelect();
   // 符文技能按钮
-  if (rune && state === STATE.PLAYING) drawRuneSkillBtn();
+  if (runes.length > 0 && state === STATE.PLAYING) drawRuneSkillBtns();
 
   // 暂停遮罩
   if (state === STATE.PAUSED) {
@@ -3601,12 +3623,14 @@ function onTouchStart(e) {
   // 海克斯符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
-    // 符文技能按钮
-    if (rune && rune._skillBtn && !rune.cfg.passive) {
-      const b = rune._skillBtn;
-      if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
-        rune.activate(player, enemies.getActive(), particles, audio);
-        return;
+    // 符文技能按钮（支持多个）
+    for (const rn of runes) {
+      if (rn._skillBtn && !rn.cfg.passive) {
+        const b = rn._skillBtn;
+        if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
+          rn.activate(player, enemies.getActive(), particles, audio);
+          return;
+        }
       }
     }
   }
@@ -3676,10 +3700,14 @@ window.addEventListener('keydown', e => {
     else { state = STATE.PLAYING; }
   }
   // ← → 切 BGM, M 静音
-  // E 触发符文技能（被动符文忽略）
-  if (e.key === 'e' && rune && !rune.cfg.passive && state === STATE.PLAYING) {
-    e.preventDefault();
-    rune.activate(player, enemies.getActive(), particles, audio);
+  // Q / E 触发符文技能
+  if ((e.key === 'e' || e.key === 'q') && state === STATE.PLAYING) {
+    const activeRunes = runes.filter(r => !r.cfg.passive);
+    const idx = e.key === 'e' ? 0 : 1;
+    if (activeRunes.length > idx) {
+      e.preventDefault();
+      activeRunes[idx].activate(player, enemies.getActive(), particles, audio);
+    }
   }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'm') {
     e.preventDefault();
@@ -3694,12 +3722,14 @@ canvas.addEventListener('mousedown', e => {
   e.preventDefault();
   // 海克斯符文选择
   if (_handleRuneClick(e.clientX, e.clientY)) return;
-  // 符文技能按钮
-  if (rune && rune._skillBtn && !rune.cfg.passive) {
-    const b = rune._skillBtn;
-    if (e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h) {
-      rune.activate(player, enemies.getActive(), particles, audio);
-      return;
+  // 符文技能按钮（支持多个）
+  for (const rn of runes) {
+    if (rn._skillBtn && !rn.cfg.passive) {
+      const b = rn._skillBtn;
+      if (e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h) {
+        rn.activate(player, enemies.getActive(), particles, audio);
+        return;
+      }
     }
   }
   if (state === STATE.START) {
@@ -3763,17 +3793,20 @@ function drawRuneSelect() {
   ctx.font = `bold ${Math.round(28 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('击败 BOSS！选择海克斯符文', sw / 2, sh * 0.12);
+  const picked = runes.length;
+  ctx.fillText('击败 BOSS！选择海克斯符文 (' + (picked+1) + '/3)', sw / 2, sh * 0.12);
 
-  const runeKeys = ['geliya', 'danbainaixi', 'quanpingshenfa'];
+  const runeKeys = _runeAvailable;
+  const count = runeKeys.length;
   const cardW = sw * 0.28;
   const cardH = sh * 0.55;
   const gap = sw * 0.03;
-  const startX = sw / 2 - (cardW + gap);
+  const totalW = count * cardW + (count - 1) * gap;
+  const startX = sw / 2 - totalW / 2 + cardW / 2;
 
   ctx._runeSelectRects = [];
 
-  for (let i = 0; i < runeKeys.length; i++) {
+  for (let i = 0; i < count; i++) {
     const key = runeKeys[i];
     const cfg = RUNE_DATA[key];
     const cx = startX + i * (cardW + gap);
@@ -3835,56 +3868,77 @@ function drawRuneSelect() {
   // 提示
   ctx.fillStyle = '#888';
   ctx.font = `${Math.round(13 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-  ctx.fillText('点击卡片选择符文 · 仅此一次', sw / 2, sh * 0.78);
+  ctx.fillText('点击卡片选择符文 · 共三次选择机会', sw / 2, sh * 0.78);
 }
 
-// 符文技能按钮（被动符文不显示）
-function drawRuneSkillBtn() {
-  if (!rune || rune.cfg.passive) return;
+// 符文技能按钮（双按键 Q/E，被动符文不显示）
+function drawRuneSkillBtns() {
+  const activeRunes = runes.filter(r => !r.cfg.passive);
   const s = uiScale();
   const btnSize = 40 * s;
-  const bx = sw - btnSize - 16;
-  const by = sh / 2 - btnSize / 2;
 
-  // 记录按钮位置
-  rune._skillBtn = { x: bx, y: by, w: btnSize, h: btnSize };
-
-  const cd = rune.cooldownRatio;
-  ctx.save();
-  ctx.globalAlpha = 0.7;
-  ctx.fillStyle = cd > 0 ? '#555' : '#333';
-  ctx.strokeStyle = cd > 0 ? '#555' : '#FFD700';
-  ctx.lineWidth = 2;
-  _roundRect(ctx, bx, by, btnSize, btnSize, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  // 冷却圆弧
-  if (cd > 0) {
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(bx + btnSize / 2, by + btnSize / 2, btnSize / 2 - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd));
-    ctx.stroke();
-    // 冷却数字
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  // 歌利亚巨人层数显示
+  const geliya = runes.find(r => r.type === 'geliya');
+  if (geliya && geliya._stacks > 0) {
+    const gx = sw - btnSize - 16;
+    const gy = sh / 2 - (activeRunes.length >= 1 ? btnSize + 24 : btnSize / 2) - 30;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    _roundRect(ctx, gx - 8, gy - 8, btnSize + 16, 26, 6);
+    ctx.fill();
+    ctx.fillStyle = '#FF5722';
+    ctx.font = `bold ${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(Math.ceil(rune.cooldownTimer) + 's', bx + btnSize / 2, by + btnSize / 2);
-  } else {
-    // 符文小图
-    if (runeImgs[rune.type]) {
-      ctx.drawImage(runeImgs[rune.type], bx + 4, by + 4, btnSize - 8, btnSize - 8);
-    }
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.round(9 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText('E', bx + btnSize / 2, by - 2);
+    ctx.fillText('巨人×' + geliya._stacks, gx + btnSize / 2, gy + 5);
+    ctx.restore();
   }
 
-  ctx.restore();
+  if (activeRunes.length === 0) return;
+  const keys = ['E', 'Q'];
+
+  for (let i = 0; i < Math.min(activeRunes.length, 2); i++) {
+    const rn = activeRunes[i];
+    const keyLabel = keys[i];
+    const bx = sw - btnSize - 16;
+    const by = sh / 2 - (activeRunes.length === 2 ? btnSize + 8 : btnSize / 2) + i * (btnSize + 16);
+
+    rn._skillBtn = { x: bx, y: by, w: btnSize, h: btnSize, key: keyLabel };
+
+    const cd = rn.cooldownRatio;
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = cd > 0 ? '#555' : '#333';
+    ctx.strokeStyle = cd > 0 ? '#555' : '#FFD700';
+    ctx.lineWidth = 2;
+    _roundRect(ctx, bx, by, btnSize, btnSize, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    if (cd > 0) {
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(bx + btnSize / 2, by + btnSize / 2, btnSize / 2 - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd));
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(Math.ceil(rn.cooldownTimer) + 's', bx + btnSize / 2, by + btnSize / 2);
+    } else {
+      if (runeImgs[rn.type]) {
+        ctx.drawImage(runeImgs[rn.type], bx + 4, by + 4, btnSize - 8, btnSize - 8);
+      }
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(9 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(keyLabel, bx + btnSize / 2, by - 2);
+    }
+
+    ctx.restore();
+  }
 }
 
 // 海克斯符文选择点击处理
@@ -3892,8 +3946,7 @@ function _handleRuneClick(cx, cy) {
   if (!runeSelectVisible || !ctx._runeSelectRects) return false;
   for (const r of ctx._runeSelectRects) {
     if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
-      rune = new Pet(r.key);
-      runeChosen = true;
+      runes.push(new Pet(r.key));
       runeSelectVisible = false;
       // 继续波次推进
       state = STATE.PLAYING;
