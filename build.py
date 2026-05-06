@@ -4,7 +4,7 @@ import base64
 import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(ROOT, 'game.html')
+OUT = os.path.join(ROOT, 'index.html')
 
 # ── 图片 → data URI ──
 def b64img(path):
