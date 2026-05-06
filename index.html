@@ -2540,7 +2540,7 @@ const RUNE_DATA = {
   geliya: {
     name: '歌利亚巨人',
     skillName: '巨人血统',
-    desc: '被动技能\n击杀Boss：生命上限+5%\n当前生命+5% · 体型+5%\n无限叠加',
+    desc: '被动技能\n击杀Boss：生命上限+10%\n当前生命+10% · 体型+10%\n无限叠加',
     passive: true
   },
   danbainaixi: {
@@ -2604,8 +2604,8 @@ class Pet {
     this._dashY = 0;
     this._dashTrail = [];
 
-    // 歌利亚巨人：叠加计数（初始1层 = 30%基础加成）
-    this._stacks = this.type === 'geliya' ? 1 : 0;
+    // 歌利亚巨人：叠加计数
+    this._stacks = 0;
   }
 
   activate(player, enemies, particles, audio) {
@@ -2686,9 +2686,11 @@ class Pet {
   onBossKill(player) {
     if (this.type === 'geliya') {
       this._stacks++;
-      player.maxHp = Math.round(player.maxHp * 1.05);
-      player.hp = Math.min(player.maxHp, Math.round(player.hp * 1.05) + 1);
-      player.radius = Math.round(player.radius * 1.05);
+      const addHp = Math.round(this._origMaxHp * 0.10);
+      const addRadius = Math.round(this._origRadius * 0.10);
+      player.maxHp = this._baseMaxHp + this._stacks * addHp;
+      player.hp = Math.min(player.maxHp, Math.round(player.hp + addHp));
+      player.radius = this._baseRadius + this._stacks * addRadius;
     }
     if (this.type === 'quanpingshenfa') {
       this.cooldownTimer = 0;
@@ -3884,7 +3886,7 @@ function drawRuneSkillBtns() {
   // 歌利亚巨人加成显示
   const geliya = runes.find(r => r.type === 'geliya');
   if (geliya) {
-    const pct = 50 + geliya._stacks * 5;
+    const pct = 50 + geliya._stacks * 10;
     const gx = sw - btnSize - 16;
     const gy = sh / 2 - (activeRunes.length >= 1 ? btnSize + 24 : btnSize / 2) - 30;
     ctx.save();
@@ -3949,9 +3951,15 @@ function drawRuneSkillBtns() {
 
 // 应用歌利亚巨人基础加成
 function _applyGeliyaBase() {
-  player.maxHp = Math.round(player.maxHp * 1.5);
+  const geliya = runes.find(r => r.type === 'geliya');
+  if (!geliya) return;
+  geliya._origMaxHp = player.maxHp;
+  geliya._origRadius = player.radius;
+  geliya._baseMaxHp = Math.round(player.maxHp * 1.5);
+  geliya._baseRadius = Math.round(player.radius * 1.5);
+  player.maxHp = geliya._baseMaxHp;
   player.hp = player.maxHp;
-  player.radius = Math.round(player.radius * 1.5);
+  player.radius = geliya._baseRadius;
 }
 
 // 海克斯符文选择点击处理
