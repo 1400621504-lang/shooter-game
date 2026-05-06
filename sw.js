@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shooter-v7';
+const CACHE_NAME = 'shooter-v8';
 const URLS = [
   './',
   'index.html',
@@ -6,6 +6,11 @@ const URLS = [
   'icon-180.png',
   'icon-192.png',
   'icon-512.png',
+  // 3 首 BGM（预缓存加速）
+  'bgm/不再曼波.mp3',
+  'bgm/打火基.mp3',
+  'bgm/boss战bgm.mp3',
+  // 代码文件（已内联到 index.html，保留兜底）
   'js/utils.js',
   'js/VirtualJoystick.js',
   'js/AudioManager.js',

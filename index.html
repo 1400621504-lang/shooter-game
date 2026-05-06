@@ -2531,6 +2531,9 @@ class BgmManager {
     this._bossAudioEl = null; // HTMLAudioElement 兜底
     this._playQueued = false;
 
+    // 记录普通 BGM 播放进度，Boss 战时保存、战后继续
+    this._savedBgmOffset = 0;
+
     // 启动预加载
     this._preload();
   }
@@ -2660,6 +2663,18 @@ class BgmManager {
 
   setBossMode(isBoss) {
     if (isBoss === this._bossMode) return;
+
+    if (isBoss) {
+      // 进入 Boss 战：保存当前普通 BGM 进度
+      if (this._source && this._audioCtx) {
+        const buf = this._tracks[this.currentIdx];
+        if (buf instanceof AudioBuffer && buf.duration > 0) {
+          const elapsed = this._audioCtx.currentTime - this._startTime;
+          this._savedBgmOffset = elapsed % buf.duration;
+        }
+      }
+    }
+
     this._bossMode = isBoss;
     this._stopSource();
     if (this.playing) this._doPlay();
@@ -2767,9 +2782,11 @@ class BgmManager {
       src.buffer = buf;
       src.loop = true;
       src.connect(this._gainNode);
-      src.start(0);
+      const offset = this._savedBgmOffset;
+      this._savedBgmOffset = 0;
+      src.start(0, offset);
       this._source = src;
-      this._startTime = this._audioCtx.currentTime;
+      this._startTime = this._audioCtx.currentTime - offset;
     } catch (_) {}
   }
 }
@@ -2835,6 +2852,7 @@ let runeSelectVisible = false;
 let cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
 let shakeAmt = 0;
 let shakeDur = 0;
+const CAMERA_ZOOM = 1.5;
 
 // ── 游戏状态 ──
 const STATE = { START: 'start', PLAYING: 'playing', WAVE_PAUSE: 'wavePause', PAUSED: 'paused', OVER: 'over' };
@@ -2880,7 +2898,7 @@ function setup() {
   bestCombo = 0;
   gameTime = 0;
   overTimer = 0;
-  if (!runeChosen) { rune = null; runeSelectVisible = false; }
+  rune = null; runeChosen = false; runeSelectVisible = false;
 }
 
 // 请求全屏（横屏时去掉浏览器 chrome）
@@ -3549,6 +3567,13 @@ function render() {
   const rCamX = cam.x + ox;
   const rCamY = cam.y + oy;
 
+  // 缩放视野（1.5x = 看到更广区域）
+  ctx.save();
+  const z = 1 / CAMERA_ZOOM;
+  ctx.translate(sw / 2, sh / 2);
+  ctx.scale(z, z);
+  ctx.translate(-sw / 2, -sh / 2);
+
   drawBg();
 
   // 粒子（底层）
@@ -3572,7 +3597,9 @@ function render() {
   // 子弹
   bullets.render(ctx, rCamX, rCamY, sw, sh);
 
-  // 摇杆 UI
+  ctx.restore();
+
+  // 摇杆 UI（不受缩放影响）
   moveJoy.render(ctx);
   shootJoy.render(ctx);
 
@@ -3791,7 +3818,7 @@ function drawRuneSelect() {
   const cardW = sw * 0.28;
   const cardH = sh * 0.55;
   const gap = sw * 0.03;
-  const startX = sw / 2 - (cardW * 1.5 + gap);
+  const startX = sw / 2 - cardW - gap;
 
   ctx._runeSelectRects = [];
 
