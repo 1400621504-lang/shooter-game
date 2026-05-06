@@ -64,7 +64,7 @@ class Pet {
     this._dashTrail = [];
   }
 
-  activate(player, enemies, particles, audio) {
+  activate(player, enemies, particles, audio, moveAngle) {
     if (this.cfg.passive) return;
     if (this.cooldownTimer > 0 || this.skillActive) return;
 
@@ -87,21 +87,22 @@ class Pet {
       this.cooldownTimer = this.cfg.cooldown;
       this.skillActive = true;
       this.skillTimer = this.cfg.dashDist / this.cfg.dashSpeed;
-      this._dashDir = player.angle;
+      this._dashDir = moveAngle !== undefined ? moveAngle : player.angle;
       this._dashX = player.x;
       this._dashY = player.y;
       this._dashTrail = [];
       // 冲刺期间无敌
       player.invulnTimer = Math.max(player.invulnTimer, this.skillTimer + 0.1);
       // 伤害路径敌人
+      const dashAngle = this._dashDir;
       for (const e of enemies) {
         if (!e.active) continue;
         const dx = e.x - player.x;
         const dy = e.y - player.y;
         const d = Math.sqrt(dx * dx + dy * dy) || 0.001;
-        const dot = (dx / d) * Math.cos(player.angle) + (dy / d) * Math.sin(player.angle);
+        const dot = (dx / d) * Math.cos(dashAngle) + (dy / d) * Math.sin(dashAngle);
         if (dot > 0 && d < 80) {
-          const crossDist = Math.abs(-Math.sin(player.angle) * dx + Math.cos(player.angle) * dy);
+          const crossDist = Math.abs(-Math.sin(dashAngle) * dx + Math.cos(dashAngle) * dy);
           if (crossDist < e.radius + 25) {
             let dmgDealt = this.cfg.damage;
             if (e.defense) dmgDealt *= (1 - e.defense);

@@ -122,6 +122,16 @@ function uiScale() {
   return clamp(Math.min(sw, sh) / 600, 0.6, 1.4);
 }
 
+// 获取当前移动方向（摇杆优先，键盘次之，最后瞄准方向）
+function getMoveAngle() {
+  if (moveJoy.active && moveJoy.magnitude > 0.1) return moveJoy.angle;
+  const kx = (keys['d'] ? 1 : 0) - (keys['a'] ? 1 : 0);
+  const ky = (keys['s'] ? 1 : 0) - (keys['w'] ? 1 : 0);
+  const kmag = Math.sqrt(kx * kx + ky * ky);
+  if (kmag > 0) return Math.atan2(ky, kx);
+  return player ? player.angle : 0;
+}
+
 // ── 开始游戏 ──
 function startGame() {
   audio.init();
@@ -129,8 +139,8 @@ function startGame() {
   if (audio.ctx && audio.ctx.state === 'suspended') {
     audio.ctx.resume();
   }
-  // 将 AudioContext 传给 BGM 管理器
-  if (audio.ctx) bgm.setAudioContext(audio.ctx);
+  // 将 AudioContext 传给 BGM 管理器（必须在 setup() 之前，因为 setup 会新建 audio）
+  if (audio.ctx && bgm) bgm.setAudioContext(audio.ctx);
   audio._initHissAudios(); // 预加载哈气
   requestFullscreen();
   setup();
@@ -306,8 +316,8 @@ function update(dt) {
       shootJoy.magnitude = 0;
     }
 
-    // 双手同时离开 → 计时（仅触屏模式）
-    if (!isDesktop && !moveJoy.active && !shootJoy.active) {
+    // 双手同时离开 → 计时（仅触屏模式，自动射击时禁用）
+    if (!isDesktop && !autoShoot && !moveJoy.active && !shootJoy.active) {
       pauseTimer += dt;
       if (pauseTimer >= 2.0) {
         state = STATE.PAUSED;
@@ -829,6 +839,11 @@ function loop(stamp) {
 // ── 触控 ──
 function onTouchStart(e) {
   e.preventDefault();
+
+  // 优先处理：游戏开始/重新开始
+  if (state === STATE.START) { startGame(); return; }
+  if (state === STATE.OVER) { startGame(); return; }
+
   // 海克斯符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
@@ -844,20 +859,7 @@ function onTouchStart(e) {
     if (rune && rune._skillBtn && !rune.cfg.passive) {
       const b = rune._skillBtn;
       if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
-        rune.activate(player, enemies.getActive(), particles, audio);
-        return;
-      }
-    }
-  }
-  if (state === STATE.START) {
-    startGame();
-    return;
-  }
-  if (state === STATE.OVER) {
-    startGame();
-    return;
-  }
-  // 检测 BGM 按钮点击
+        rune.activate(player, enemies.getActive(), particles, audio, getMoveAngle());
   for (const t of e.changedTouches) {
     if (bgm) {
       for (const btn of [bgm._btnLeft, bgm._btnRight]) {
