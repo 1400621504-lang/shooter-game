@@ -26,9 +26,10 @@ let logoImg = null;
 let sw, sh, dpr;
 
 function resize() {
+  const nw = window.innerWidth, nh = window.innerHeight;
+  if (nw === sw && nh === sh) return;
   dpr = window.devicePixelRatio || 1;
-  sw = window.innerWidth;
-  sh = window.innerHeight;
+  sw = nw; sh = nh;
   canvas.width = sw * dpr;
   canvas.height = sh * dpr;
   canvas.style.width = sw + 'px';
@@ -140,10 +141,10 @@ function getMoveAngle() {
 
 // ── 开始游戏 ──
 function startGame(devWave) {
-  audio.init();
-  audio._initHissAudios();
   requestFullscreen();
   setup();
+  audio.init();
+  audio._initHissAudios();
   bgm.play();
   const targetWave = devWave || startWave;
   if (targetWave >= 6 && !rune) {
@@ -263,6 +264,7 @@ function checkEnemyPlayer() {
         if (!player.alive) {
           state = STATE.OVER;
           overTimer = 0;
+          if (bgm) bgm.stop();
           audio.explosion();
           particles.emit(player.x, player.y, {
             count: 40,
@@ -495,9 +497,6 @@ function updateCamera(dt) {
 
 // ── 渲染：背景 ──
 function drawBg() {
-  ctx.fillStyle = '#151515';
-  ctx.fillRect(0, 0, sw, sh);
-
   const grid = 80;
   const sx = Math.floor((cam.x - sw / 2) / grid) * grid;
   const sy = Math.floor((cam.y - sh / 2) / grid) * grid;
@@ -843,6 +842,10 @@ function render() {
   }
   const rCamX = cam.x + ox;
   const rCamY = cam.y + oy;
+
+  // 背景色填充（在缩放前绘制，确保铺满全屏）
+  ctx.fillStyle = '#151515';
+  ctx.fillRect(0, 0, sw, sh);
 
   // 缩放视野（1.5x = 看到更广区域）
   ctx.save();
