@@ -11,9 +11,12 @@ class BgmManager {
       new Audio('bgm/不再曼波.mp3'),
       new Audio('bgm/打火基.mp3'),
     ];
+    this._bossAudio = new Audio('bgm/boss战bgm.mp3');
+    this._bossAudio.loop = true;
+    this._bossAudio.preload = 'auto';
+    this._bossAudio.volume = BOSS_BGM_VOLUME;
     this.currentIdx = 0;
     this.playing = false;
-    this._bossAudio = new Audio('bgm/boss战bgm.mp3');
     this._bossMode = false;
     this._bgmVolume = BGM_VOLUME;
     this._bossVolume = BOSS_BGM_VOLUME;
@@ -22,13 +25,8 @@ class BgmManager {
       a.volume = this._bgmVolume;
       a.loop = false;
       a.preload = 'auto';
-      a.load();
       a.addEventListener('ended', () => this._randomNext());
     }
-    this._bossAudio.volume = this._bossVolume;
-    this._bossAudio.loop = true;
-    this._bossAudio.preload = 'auto';
-    this._bossAudio.load();
   }
 
   get currentName() {
@@ -61,14 +59,12 @@ class BgmManager {
   }
 
   setBossMode(isBoss) {
-    console.log('[BGM] setBossMode(' + isBoss + ') _bossMode=' + this._bossMode + ' playing=' + this.playing + ' muted=' + this._muted);
     if (isBoss === this._bossMode) return;
     this._bossMode = isBoss;
     if (isBoss) {
       for (const a of this.audios) { a.pause(); }
-      console.log('[BGM] playing boss audio');
       this._bossAudio.currentTime = 0;
-      this._bossAudio.play().then(() => console.log('[BGM] boss audio OK')).catch(e => console.log('[BGM] boss audio FAIL', e));
+      this._bossAudio.play().catch(() => {});
     } else {
       this._bossAudio.pause();
       this._bossAudio.currentTime = 0;

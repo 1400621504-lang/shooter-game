@@ -229,6 +229,9 @@ class AudioManager {
     if (this.ready) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
       this._masterGain = this.ctx.createGain();
       this._masterGain.gain.value = 1.0;
       this._masterGain.connect(this.ctx.destination);
@@ -2513,9 +2516,12 @@ class BgmManager {
       new Audio('bgm/不再曼波.mp3'),
       new Audio('bgm/打火基.mp3'),
     ];
+    this._bossAudio = new Audio('bgm/boss战bgm.mp3');
+    this._bossAudio.loop = true;
+    this._bossAudio.preload = 'auto';
+    this._bossAudio.volume = BOSS_BGM_VOLUME;
     this.currentIdx = 0;
     this.playing = false;
-    this._bossAudio = new Audio('bgm/boss战bgm.mp3');
     this._bossMode = false;
     this._bgmVolume = BGM_VOLUME;
     this._bossVolume = BOSS_BGM_VOLUME;
@@ -2524,13 +2530,8 @@ class BgmManager {
       a.volume = this._bgmVolume;
       a.loop = false;
       a.preload = 'auto';
-      a.load();
       a.addEventListener('ended', () => this._randomNext());
     }
-    this._bossAudio.volume = this._bossVolume;
-    this._bossAudio.loop = true;
-    this._bossAudio.preload = 'auto';
-    this._bossAudio.load();
   }
 
   get currentName() {
@@ -2563,14 +2564,12 @@ class BgmManager {
   }
 
   setBossMode(isBoss) {
-    console.log('[BGM] setBossMode(' + isBoss + ') _bossMode=' + this._bossMode + ' playing=' + this.playing + ' muted=' + this._muted);
     if (isBoss === this._bossMode) return;
     this._bossMode = isBoss;
     if (isBoss) {
       for (const a of this.audios) { a.pause(); }
-      console.log('[BGM] playing boss audio');
       this._bossAudio.currentTime = 0;
-      this._bossAudio.play().then(() => console.log('[BGM] boss audio OK')).catch(e => console.log('[BGM] boss audio FAIL', e));
+      this._bossAudio.play().catch(() => {});
     } else {
       this._bossAudio.pause();
       this._bossAudio.currentTime = 0;
@@ -2771,6 +2770,10 @@ function uiScale() {
 // ── 开始游戏 ──
 function startGame() {
   audio.init();
+  // 解锁移动端音频（iOS 需要明确 resume）
+  if (audio.ctx && audio.ctx.state === 'suspended') {
+    audio.ctx.resume();
+  }
   audio._initHissAudios(); // 预加载哈气
   requestFullscreen();
   setup();
@@ -3032,7 +3035,6 @@ function update(dt) {
     // Boss BGM 自动切换（实时检测场上是否有 Boss）
     if (bgm) {
       const hasBoss = enemies.getActive().some(e => e.isBoss);
-      if (hasBoss !== bgm.isBossMode) console.log('[BGM] boss detected: ' + hasBoss + ' activeCount=' + enemies.getActive().length);
       bgm.setBossMode(hasBoss);
     }
 
