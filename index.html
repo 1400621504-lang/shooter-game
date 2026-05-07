@@ -3673,20 +3673,13 @@ function drawStartScreen() {
   ctx.fillText('点击屏幕开始', sw / 2, sh * 0.80);
   ctx.restore();
 
-  // ── 移动端触控区域提示 ──
+  // ── 移动端操作提示 ──
   if (!isDesktop) {
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = '#4FC3F7';
-    ctx.fillRect(0, 0, sw / 2, sh);
-    ctx.fillStyle = '#FF5252';
-    ctx.fillRect(sw / 2, 0, sw / 2, sh);
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#fff';
     ctx.font = `${Math.round(10 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('移动', sw * 0.25, sh * 0.93);
-    ctx.fillText('瞄准', sw * 0.75, sh * 0.93);
     ctx.fillText('左下角可切换自动射击', sw / 2, sh * 0.97);
     ctx.globalAlpha = 1;
   }
