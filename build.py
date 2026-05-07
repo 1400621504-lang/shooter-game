@@ -234,6 +234,9 @@ html = f"""<!DOCTYPE html>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="耄耋大乱斗">
   <meta name="theme-color" content="#111111">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+  <link rel="manifest" href="manifest.json">
   <title>耄耋大乱斗</title>
   <style>
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -253,6 +256,7 @@ html = f"""<!DOCTYPE html>
       display: block;
       position: absolute;
       top: 0; left: 0;
+      touch-action: none;
     }}
   </style>
 </head>

@@ -1288,9 +1288,10 @@ function _handleRuneClick(cx, cy) {
 // ── 启动 ──
 resize();
 setup();
-canvas.addEventListener('touchstart', onTouchStart, { passive: false });
-canvas.addEventListener('touchmove', onTouchMove, { passive: false });
-canvas.addEventListener('touchend', onTouchEnd);
-canvas.addEventListener('touchcancel', onTouchEnd);
+// 事件绑到 document 层，避免夸克等浏览器拦截 canvas 触摸
+document.addEventListener('touchstart', onTouchStart, { passive: false });
+document.addEventListener('touchmove', onTouchMove, { passive: false });
+document.addEventListener('touchend', onTouchEnd, { passive: false });
+document.addEventListener('touchcancel', onTouchEnd, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 requestAnimationFrame(loop);
