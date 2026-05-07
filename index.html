@@ -2842,6 +2842,7 @@ const BGM_VOLUME = 0.38;
 const BOSS_BGM_VOLUME = 0.32;
 
 const BGM_PLAYLIST_NAMES = ['不再曼波', '打火基'];
+const GAME_VERSION = 'v1.0';
 
 class BgmManager {
   constructor() {
@@ -3586,6 +3587,9 @@ function drawStartScreen() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('耄耋大乱斗', sw / 2, sh * 0.20);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = `${Math.round(11 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  ctx.fillText(GAME_VERSION, sw / 2 + 130 * s, sh * 0.20 + 2 * s);
 
   // ── 操作说明 ──
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
