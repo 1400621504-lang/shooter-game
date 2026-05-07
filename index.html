@@ -2858,6 +2858,7 @@ class BgmManager {
     this._bossMode = false;
     this._bgmVolume = BGM_VOLUME;
     this._bossVolume = BOSS_BGM_VOLUME;
+    this._savedTime = 0;
 
     for (const a of this.audios) {
       a.volume = this._bgmVolume;
@@ -2896,6 +2897,9 @@ class BgmManager {
     if (isBoss === this._bossMode) return;
     this._bossMode = isBoss;
     if (isBoss) {
+      // 保存当前普通 BGM 进度
+      const a = this.audios[this.currentIdx];
+      if (a && this.playing) this._savedTime = a.currentTime;
       for (const a of this.audios) { a.pause(); }
       if (this.playing && !this._muted) {
         this._bossAudio.currentTime = 0;
@@ -2906,7 +2910,8 @@ class BgmManager {
       this._bossAudio.currentTime = 0;
       if (this.playing) {
         const a = this.audios[this.currentIdx];
-        a.currentTime = 0;
+        a.currentTime = this._savedTime || 0;
+        this._savedTime = 0;
         a.play().catch(() => {});
       }
     }
