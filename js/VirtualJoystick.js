@@ -25,11 +25,11 @@ class VirtualJoystick {
     this.maxRadius = clamp(Math.min(sw, sh) * 0.13, 60, 120);
   }
 
-  // 尝试接管触摸，zone 判断在调用方做
+  // 尝试接管触摸（左右各缩进 10% 避开系统手势）
   tryStart(touchId, x, y, screenW) {
     const inZone = this.side === 'left'
-      ? x < screenW / 2
-      : x >= screenW / 2;
+      ? x >= screenW * 0.1 && x < screenW * 0.5
+      : x >= screenW * 0.5 && x < screenW * 0.9;
     if (!inZone || this.touchId !== null) return false;
 
     this.touchId = touchId;

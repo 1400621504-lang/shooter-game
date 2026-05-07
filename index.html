@@ -129,8 +129,8 @@ class VirtualJoystick {
   // 尝试接管触摸，zone 判断在调用方做
   tryStart(touchId, x, y, screenW) {
     const inZone = this.side === 'left'
-      ? x < screenW / 2
-      : x >= screenW / 2;
+      ? x >= screenW * 0.1 && x < screenW * 0.5
+      : x >= screenW * 0.5 && x < screenW * 0.9;
     if (!inZone || this.touchId !== null) return false;
 
     this.touchId = touchId;

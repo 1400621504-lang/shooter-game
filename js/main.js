@@ -932,8 +932,8 @@ function onTouchStart(e) {
   for (const t of e.changedTouches) {
     if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) return;
   }
-  if (state === STATE.START && !_devDrafting) { startGame(); return; }
-  if (state === STATE.OVER) { startGame(); return; }
+  if (state === STATE.START && !_devDrafting) { startGame(); }
+  if (state === STATE.OVER) { startGame(); }
 
   // 自动射击/符文技能/BGM 按钮
   for (const t of e.changedTouches) {
