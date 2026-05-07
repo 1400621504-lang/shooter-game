@@ -77,7 +77,7 @@ let comboTimer = 0;
 let comboCount = 0;
 let bestCombo = 0;
 let gameTime = 0;
-let autoShoot = 'ontouchstart' in window; // 触屏设备默认开启自动射击
+let autoShoot = false;          // 自动射击模式（手机专用）
 
 // ── 波次暂停计时 ──
 let wavePauseTimer = 0;
@@ -1288,10 +1288,9 @@ function _handleRuneClick(cx, cy) {
 // ── 启动 ──
 resize();
 setup();
-// 事件绑到 document 层，避免夸克等浏览器拦截 canvas 触摸
-document.addEventListener('touchstart', onTouchStart, { passive: false });
-document.addEventListener('touchmove', onTouchMove, { passive: false });
-document.addEventListener('touchend', onTouchEnd, { passive: false });
-document.addEventListener('touchcancel', onTouchEnd, { passive: false });
+canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+canvas.addEventListener('touchend', onTouchEnd);
+canvas.addEventListener('touchcancel', onTouchEnd);
 document.addEventListener('contextmenu', e => e.preventDefault());
 requestAnimationFrame(loop);
