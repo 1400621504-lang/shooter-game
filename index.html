@@ -1147,6 +1147,7 @@ let tankBossImg = null;
 let supermanBossImg = null;
 let aircraftBossImg = null;
 let sangbiaoBossImg = null;
+let logoImg = null;
 (function loadBossImg() {
   const loadUri = (uri, onOk) => {
     const img = new Image();
@@ -1169,6 +1170,15 @@ let sangbiaoBossImg = null;
   img.onerror = () => {};
   img.src = '游戏/boss/第15关boss丧彪.png';
   if (img.complete && img.naturalWidth > 0) sangbiaoBossImg = img;
+})();
+
+// 预加载 Logo 图片（主菜单背景装饰）
+(function loadLogoImg() {
+  const img = new Image();
+  img.onload = () => { logoImg = img; };
+  img.onerror = () => {};
+  img.src = 'logo.png';
+  if (img.complete && img.naturalWidth > 0) logoImg = img;
 })();
 
 // ── Boss 出场警告状态 ──
@@ -3549,51 +3559,90 @@ function drawStartScreen() {
   ctx.fillStyle = '#151515';
   ctx.fillRect(0, 0, sw, sh);
 
+  // ── Logo 背景装饰（半透明，缩小）──
+  if (logoImg) {
+    const lSize = Math.min(sw, sh) * 0.5;
+    const lh = lSize * (logoImg.height / logoImg.width);
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.drawImage(logoImg, sw / 2 - lSize / 2, sh / 2 - lh / 2, lSize, lh);
+    ctx.restore();
+  }
+
+  // ── BGM 选歌 — 顶部 ──
+  {
+    const by = Math.round(sh * 0.04);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    _roundRect(ctx, sw / 2 - 130 * s, by - 8 * s, 260 * s, 26 * s, 13);
+    ctx.fill();
+    ctx.fillStyle = '#bbb';
+    ctx.font = `${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('◀  ' + (bgm ? '♪ ' + bgm.currentName : '—') + '  ▶', sw / 2, by);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = `${Math.round(8 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('点击切歌', sw / 2, by + 14 * s);
+  }
+
+  // ── 游戏标题 ──
   ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.round(40 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  ctx.font = `bold ${Math.round(38 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('耄耋大乱斗', sw / 2, sh / 2 - 130 * s);
+  ctx.fillText('耄耋大乱斗', sw / 2, sh * 0.20);
 
-  ctx.fillStyle = '#aaa';
-  ctx.font = `${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-  ctx.fillText('左手移动  ·  右手射击', sw / 2, sh / 2 - 75 * s);
+  // ── 操作说明 ──
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+  ctx.fillText('左手移动  ·  右手射击', sw / 2, sh * 0.27);
 
-  // ── 开发版波次选择 ──
+  // ── 波次选择 ──
   {
-    const wy = sh / 2 - 42 * s;
+    const waveY = sh * 0.42;
     ctx.fillStyle = '#FFD700';
-    ctx.font = `bold ${Math.round(15 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.fillText('🔧 选择起始波次：第 ' + startWave + ' 波', sw / 2, wy);
-    // 减号
+    ctx.font = `bold ${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText('选择起始波次：第 ' + startWave + ' 波', sw / 2, waveY);
+
+    // 减号按钮
+    const btnSz = 30 * s;
+    const btnGap = 16 * s;
+    const btnY = waveY + btnSz * 0.5;
     ctx.fillStyle = startWave > 1 ? '#FF9800' : '#444';
-    const btnMinus = { x: sw / 2 - 90 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    const btnMinus = { x: sw / 2 - btnSz * 1.8, y: btnY, w: btnSz, h: btnSz };
     _devWaveBtns[0] = btnMinus;
-    _roundRect(ctx, btnMinus.x, btnMinus.y, btnMinus.w, btnMinus.h, 6);
+    _roundRect(ctx, btnMinus.x, btnMinus.y, btnMinus.w, btnMinus.h, 8);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.round(16 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.font = `bold ${Math.round(18 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
     ctx.fillText('−', btnMinus.x + btnMinus.w / 2, btnMinus.y + btnMinus.h / 2);
-    // 加号
+
+    // 加号按钮
     ctx.fillStyle = startWave < 20 ? '#FF9800' : '#444';
-    const btnPlus = { x: sw / 2 + 58 * s, y: wy - 12 * s, w: 32 * s, h: 24 * s };
+    const btnPlus = { x: sw / 2 + btnSz * 0.8, y: btnY, w: btnSz, h: btnSz };
     _devWaveBtns[1] = btnPlus;
-    _roundRect(ctx, btnPlus.x, btnPlus.y, btnPlus.w, btnPlus.h, 6);
+    _roundRect(ctx, btnPlus.x, btnPlus.y, btnPlus.w, btnPlus.h, 8);
     ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.fillText('+', btnPlus.x + btnPlus.w / 2, btnPlus.y + btnPlus.h / 2);
+
+    // 当前波次数字（显示在中间）
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.round(24 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.fillText(startWave, sw / 2, btnY + btnSz / 2 + 2 * s);
+
     // 快捷跳转按钮
     const jumpWaves = [1, 3, 6, 9, 12, 15];
-    const jumpY = wy + 20 * s;
-    _devWaveBtns[2] = []; // 存储快捷按钮
+    const jumpY = btnY + btnSz + 10 * s;
+    _devWaveBtns[2] = [];
     for (let j = 0; j < jumpWaves.length; j++) {
       const jx = sw / 2 + (j - (jumpWaves.length - 1) / 2) * 38 * s;
-      const btn = { x: jx - 16 * s, y: jumpY, w: 32 * s, h: 18 * s, wave: jumpWaves[j] };
+      const btn = { x: jx - 15 * s, y: jumpY, w: 30 * s, h: 20 * s, wave: jumpWaves[j] };
       _devWaveBtns[2].push(btn);
-      ctx.fillStyle = startWave === jumpWaves[j] ? '#FFD700' : 'rgba(255,255,255,0.15)';
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillStyle = startWave === jumpWaves[j] ? '#FFD700' : 'rgba(255,255,255,0.12)';
+      ctx.strokeStyle = startWave === jumpWaves[j] ? '#FFD700' : 'rgba(255,255,255,0.2)';
       ctx.lineWidth = 1;
-      _roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 4);
+      _roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 5);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = startWave === jumpWaves[j] ? '#000' : '#ccc';
@@ -3602,35 +3651,54 @@ function drawStartScreen() {
     }
   }
 
-  // BGM 选歌 — 顶部居中
-  {
-    const by = 60 * s;
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(sw / 2 - 140 * s, by - 10 * s, 280 * s, 28 * s);
-    ctx.fillStyle = '#ddd';
-    ctx.font = `bold ${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.fillText('♪ ' + (bgm ? bgm.currentName : '—'), sw / 2, by);
-    // 左右箭头
-    ctx.fillStyle = '#aaa';
-    ctx.font = `${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.fillText('◀ 点击切歌 ▶', sw / 2, by + 16 * s);
-  }
+  // ── 装饰分割线 ──
+  ctx.save();
+  ctx.globalAlpha = 0.1;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(sw * 0.2, sh * 0.72);
+  ctx.lineTo(sw * 0.8, sh * 0.72);
+  ctx.stroke();
+  ctx.restore();
 
-  // iOS 且非独立模式：引导添加到主屏幕
-  if (isIOS && !isStandalone) {
-    ctx.fillStyle = '#FF9800';
-    ctx.font = `${Math.round(14 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.fillText('点底部 分享 → 添加到主屏幕', sw / 2, sh / 2 + 20 * s);
-    ctx.fillText('可隐藏浏览器栏，获得全屏体验', sw / 2, sh / 2 + 42 * s);
-  }
-
-  // 脉冲提示
+  // ── 脉冲提示：点击开始 ──
   const pulse = Math.sin(Date.now() / 800) * 0.3 + 0.7;
+  ctx.save();
   ctx.globalAlpha = pulse;
   ctx.fillStyle = '#fff';
   ctx.font = `bold ${Math.round(20 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-  ctx.fillText('点击屏幕开始', sw / 2, sh / 2 + 20 * s);
-  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('点击屏幕开始', sw / 2, sh * 0.80);
+  ctx.restore();
+
+  // ── 移动端触控区域提示 ──
+  if (!isDesktop) {
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#4FC3F7';
+    ctx.fillRect(0, 0, sw / 2, sh);
+    ctx.fillStyle = '#FF5252';
+    ctx.fillRect(sw / 2, 0, sw / 2, sh);
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.round(10 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('移动', sw * 0.25, sh * 0.93);
+    ctx.fillText('瞄准', sw * 0.75, sh * 0.93);
+    ctx.fillText('左下角可切换自动射击', sw / 2, sh * 0.97);
+    ctx.globalAlpha = 1;
+  }
+
+  // iOS 引导
+  if (isIOS && !isStandalone) {
+    ctx.fillStyle = '#FF9800';
+    ctx.font = `${Math.round(12 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('点底部 分享 → 添加到主屏幕，获得全屏体验', sw / 2, sh * 0.90);
+  }
 }
 
 // ── 渲染：暂停遮罩 ──

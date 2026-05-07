@@ -9,6 +9,7 @@ const URLS = [
   'bgm/不再曼波.mp3',
   'bgm/打火基.mp3',
   'bgm/boss战bgm.mp3',
+  'logo.png',
   'boss-imgs/hiss1.mp3', 'boss-imgs/hiss2.mp3',
   'boss-imgs/hiss3.mp3',
 ];
