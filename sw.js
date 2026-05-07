@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shooter-v11';
+const CACHE_NAME = 'shooter-v12';
 const URLS = [
   './',
   'index.html',
