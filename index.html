@@ -3840,48 +3840,43 @@ function loop(stamp) {
 // ── 触控 ──
 function onTouchStart(e) {
   e.preventDefault();
-  // 海克斯符文选择
+  let started = false;
   for (const t of e.changedTouches) {
-    if (_handleRuneClick(t.clientX, t.clientY)) return;
-    // 符文技能按钮（支持多个）
+    // 海克斯符文选择
+    if (_handleRuneClick(t.clientX, t.clientY)) continue;
+    // 符文技能按钮
+    let onUI = false;
     for (const rn of runes) {
       if (rn._skillBtn && !rn.cfg.passive) {
         const b = rn._skillBtn;
         if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
           rn.activate(player, enemies.getActive(), particles, audio);
-          return;
+          onUI = true; break;
         }
       }
     }
-  }
-  // 开发版波次选择
-  for (const t of e.changedTouches) {
-    if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) return;
-  }
-  if (state === STATE.START && !_devDrafting) {
-    startGame();
-    return;
-  }
-  if (state === STATE.OVER) {
-    startGame();
-    return;
-  }
-  // 检测 BGM 按钮点击
-  for (const t of e.changedTouches) {
+    if (onUI) continue;
+    // 波次选择
+    if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) continue;
+    // BGM 按钮（优先于开始游戏）
     if (bgm) {
       for (const btn of [bgm._btnLeft, bgm._btnRight]) {
         if (!btn) continue;
-        const s2 = uiScale();
         if (t.clientX >= btn.x && t.clientX <= btn.x + btn.w &&
             t.clientY >= btn.y && t.clientY <= btn.y + btn.h) {
           if (btn.action === 'mute') bgm.toggleMute();
           else if (btn.action === 'next') bgm.next();
-          t._handled = true;
-          break;
+          t._handled = true; break;
         }
       }
     }
     if (!t._handled) {
+      // 开始 / 重新开始（只触发一次）
+      if (!started) {
+        if (state === STATE.START && !_devDrafting) { startGame(); started = true; }
+        if (state === STATE.OVER) { startGame(); started = true; }
+      }
+      // 摇杆
       moveJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
       shootJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
     }
@@ -4260,8 +4255,8 @@ resize();
 setup();
 canvas.addEventListener('touchstart', onTouchStart, { passive: false });
 canvas.addEventListener('touchmove', onTouchMove, { passive: false });
-canvas.addEventListener('touchend', onTouchEnd);
-canvas.addEventListener('touchcancel', onTouchEnd);
+canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 requestAnimationFrame(loop);
 
