@@ -3559,16 +3559,6 @@ function drawStartScreen() {
   ctx.fillStyle = '#151515';
   ctx.fillRect(0, 0, sw, sh);
 
-  // ── Logo 背景装饰（半透明，缩小）──
-  if (logoImg) {
-    const lSize = Math.min(sw, sh) * 0.5;
-    const lh = lSize * (logoImg.height / logoImg.width);
-    ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.drawImage(logoImg, sw / 2 - lSize / 2, sh / 2 - lh / 2, lSize, lh);
-    ctx.restore();
-  }
-
   // ── BGM 选歌 — 顶部 ──
   {
     const by = Math.round(sh * 0.04);
