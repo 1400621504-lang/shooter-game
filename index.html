@@ -3823,10 +3823,6 @@ let lastStamp = 0;
 function loop(stamp) {
   requestAnimationFrame(loop);
 
-// ── 注册 SW
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
   const dt = lastStamp ? Math.min((stamp - lastStamp) / 1000, 0.1) : 0.016;
   lastStamp = stamp;
 
@@ -3993,10 +3989,7 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', () => { mouseDown = false; });
 canvas.addEventListener('mouseleave', () => { mouseDown = false; });
 
-// ── 注册 SW ──
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
+if (false) {}
 
 // ── 圆角矩形辅助 ──
 function _roundRect(ctx, x, y, w, h, r) {
@@ -4273,10 +4266,34 @@ canvas.addEventListener('touchcancel', onTouchEnd);
 document.addEventListener('contextmenu', e => e.preventDefault());
 requestAnimationFrame(loop);
 
-// ── 注册 SW
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
+// ── 注册 SW + 自动更新轮询 ──
+(function() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js').then(function(reg) {
+    // 每 10 秒检查一次更新，确保新版本尽快生效
+    setInterval(function() { reg.update(); }, 10000);
+    // 检测到新 SW 等待 → 立即激活
+    if (reg.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+    // 新 SW 安装后自动接管
+    reg.addEventListener('updatefound', function() {
+      var newSW = reg.installing;
+      newSW.addEventListener('statechange', function() {
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          newSW.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    });
+  });
+  // 当新 SW 激活后，刷新页面用新版本
+  var refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+})();
 
   </script>
 </body>
