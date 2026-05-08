@@ -3039,10 +3039,6 @@ let wavePauseTimer = 0;
 // ── Game Over 动画 ──
 let overTimer = 0;
 
-// ── 自动射击 ──
-let autoShoot = true; // 手机默认自动射击
-let _autoShootBtn = null;
-
 // ── 自动暂停 ──
 let pauseTimer = 0;
 
@@ -3276,25 +3272,8 @@ function update(dt) {
       shootJoy.magnitude = 0;
     }
 
-    // ── 自动射击（默认开启：右摇杆未触摸时自动瞄准最近敌人）──
-    if (autoShoot && !shootJoy.active && player.alive) {
-      const activeEnemies = enemies.getActive();
-      if (activeEnemies.length > 0) {
-        let nearest = activeEnemies[0];
-        let nearDist = dist(player.x, player.y, nearest.x, nearest.y);
-        for (const e of activeEnemies) {
-          const d = dist(player.x, player.y, e.x, e.y);
-          if (d < nearDist) { nearDist = d; nearest = e; }
-        }
-        if (nearDist < 600) {
-          player.angle = angleTo(player.x, player.y, nearest.x, nearest.y);
-          player.fire(dt, bullets);
-        }
-      }
-    }
-
-    // 双手同时离开 → 计时（仅触屏模式，自动射击时禁用）
-    if (!isDesktop && !autoShoot && !moveJoy.active && !shootJoy.active) {
+    // 双手同时离开 → 计时（仅触屏模式）
+    if (!isDesktop && !moveJoy.active && !shootJoy.active) {
       pauseTimer += dt;
       if (pauseTimer >= 2.0) {
         state = STATE.PAUSED;
@@ -3561,27 +3540,6 @@ function drawHUD() {
   }
 
   // 哈气提醒（已移到 boss 图标下方）
-
-  // 自动射击切换按钮（左下角，仅触屏）
-  if (!isDesktop) {
-    const asSize = Math.max(44, 40 * s);
-    const asX = 14;
-    const asY = sh - asSize - 14;
-    _autoShootBtn = { x: asX, y: asY, w: asSize, h: asSize };
-    ctx.fillStyle = autoShoot ? 'rgba(76,175,80,0.7)' : 'rgba(255,255,255,0.15)';
-    ctx.strokeStyle = autoShoot ? '#4CAF50' : 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 1.5;
-    _roundRect(ctx, asX, asY, asSize, asSize, 6);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.round(9 * s)}px "PingFang SC","Helvetica Neue",sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(autoShoot ? 'AUTO' : '手动', asX + asSize / 2, asY + asSize / 2);
-    ctx.globalAlpha = 1;
-  }
-
   ctx.restore();
 }
 
@@ -3874,32 +3832,22 @@ function onTouchStart(e) {
     startGame();
     return;
   }
-  // 检测 BGM 按钮点击 / 自动射击按钮
+  // 检测 BGM 按钮点击
   for (const t of e.changedTouches) {
-    let handled = false;
-    // 自动射击按钮（左下角）
-    if (!handled && !isDesktop && _autoShootBtn) {
-      const b = _autoShootBtn;
-      if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
-        autoShoot = !autoShoot;
-        handled = true;
-      }
-    }
-    // BGM 按钮
-    if (!handled && bgm) {
+    if (bgm) {
       for (const btn of [bgm._btnLeft, bgm._btnRight]) {
         if (!btn) continue;
+        const s2 = uiScale();
         if (t.clientX >= btn.x && t.clientX <= btn.x + btn.w &&
             t.clientY >= btn.y && t.clientY <= btn.y + btn.h) {
           if (btn.action === 'mute') bgm.toggleMute();
           else if (btn.action === 'next') bgm.next();
-          handled = true;
+          t._handled = true;
           break;
         }
       }
     }
-    // 摇杆
-    if (!handled) {
+    if (!t._handled) {
       moveJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
       shootJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
       _dbg.moveActive = moveJoy.active;

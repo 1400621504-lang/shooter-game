@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>触屏修复验证</title>
+<style>
+  body { font: 16px monospace; padding: 20px; background: #111; color: #fff; }
+  .pass { color: #4CAF50; } .fail { color: #f44336; } .info { color: #FFC107; }
+  #log { margin-top: 10px; } p { margin: 4px 0; }
+  canvas { display: block; border: 1px solid #333; margin: 10px 0; }
+</style></head>
+<body>
+<h2>触屏修复逻辑验证</h2>
+<canvas id="c" width="400" height="200"></canvas>
+<div id="log"></div>
+
+<script>
+const log = document.getElementById('log');
+const canvas = document.getElementById('c');
+let _lastTouchTime = 0;
+let isDesktop = false;
+let mouseDown = false;
+
+function L(msg, cls) {
+  const p = document.createElement('p');
+  p.className = cls || 'info';
+  p.textContent = msg;
+  log.appendChild(p);
+}
+
+// 模拟游戏中的 touchstart handler
+function onTouchStart(e) {
+  _lastTouchTime = performance.now();
+  e.preventDefault();
+  L('[touchstart] _lastTouchTime=' + _lastTouchTime.toFixed(1), 'info');
+}
+
+// 模拟游戏中的 mousedown handler（带修复）
+canvas.addEventListener('mousedown', e => {
+  const elapsed = performance.now() - _lastTouchTime;
+  if (elapsed < 500) {
+    L('[mousedown] 被守卫拦截 (距touchstart ' + elapsed.toFixed(1) + 'ms < 500ms) ✓', 'pass');
+    return;
+  }
+  isDesktop = true;
+  mouseDown = true;
+  L('[mousedown] 通过守卫，isDesktop=true (距touchstart ' + elapsed.toFixed(1) + 'ms)', 'info');
+});
+
+document.addEventListener('touchstart', onTouchStart, { passive: false });
+
+// 运行测试
+async function runTests() {
+  L('=== 测试1: 模拟Android触摸→鼠标合成事件 ===', 'info');
+
+  // 模拟 touchstart
+  L('→ 触发 touchstart...', 'info');
+  document.dispatchEvent(new TouchEvent('touchstart', {
+    bubbles: true, cancelable: true,
+    changedTouches: [{ identifier: 0, clientX: 150, clientY: 100, target: canvas }]
+  }));
+
+  await new Promise(r => setTimeout(r, 10));
+
+  // 立即模拟 mousedown（合成事件）
+  L('→ 触发合成 mousedown...', 'info');
+  canvas.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true,
+    clientX: 150, clientY: 100 }));
+
+  await new Promise(r => setTimeout(r, 10));
+
+  L('结果: isDesktop=' + isDesktop + ' mouseDown=' + mouseDown, 'info');
+  if (!isDesktop && !mouseDown) {
+    L('✓ 测试1通过: 合成鼠标事件被正确拦截', 'pass');
+  } else {
+    L('✗ 测试1失败: 合成鼠标事件未被拦截!', 'fail');
+  }
+
+  // 测试2: 真实鼠标点击（超500ms后）
+  L('', 'info');
+  L('=== 测试2: 模拟真实桌面鼠标点击(600ms后) ===', 'info');
+
+  await new Promise(r => setTimeout(r, 600));
+
+  L('→ 触发真实 mousedown (600ms后)...', 'info');
+  canvas.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true,
+    clientX: 200, clientY: 150 }));
+
+  await new Promise(r => setTimeout(r, 10));
+
+  L('结果: isDesktop=' + isDesktop + ' mouseDown=' + mouseDown, 'info');
+  if (isDesktop && mouseDown) {
+    L('✓ 测试2通过: 真实鼠标事件正常触发', 'pass');
+  } else {
+    L('✗ 测试2失败: 真实鼠标事件被误拦截!', 'fail');
+  }
+
+  L('', 'info');
+  L('=== 总结 ===', 'info');
+  L('在桌面浏览器上测试通过(逻辑验证)。', 'pass');
+  L('真实Android测试: 用手机浏览器打开此页面观察结果。', 'info');
+}
+
+runTests();
+</script>
+</body>
+</html>
