@@ -2553,7 +2553,7 @@ function renderBossNames(ctx, pool, camX, camY, sw, sh) {
 
   </script>
   <script>
-// 海克斯符文系统 — 击败第6波Boss后三选一
+// 克斯海符文系统 — 击败第6波Boss后三选一
 
 const RUNE_DATA = {
   geliya: {
@@ -3161,7 +3161,7 @@ function checkBulletHits() {
           comboCount++;
           comboTimer = 1.5;
           if (comboCount > bestCombo) bestCombo = comboCount;
-          // 海克斯符文回调
+          // 克斯海符文回调
           for (const r of runes) {
             if (e.isBoss) r.onBossKill(player);
             else r.onMinionKill();
@@ -3384,7 +3384,7 @@ function update(dt) {
       audio.waveClear();
     }
   } else if (state === STATE.WAVE_PAUSE) {
-    // 第6/9/12波触发海克斯符文选择
+    // 第6/9/12波触发克斯海符文选择
     const runeWaves = [6, 9, 12];
     if (runeWaves.includes(waveNum) && runes.length < 3 && !runeSelectVisible && !_devDrafting) {
       const allKeys = ['geliya', 'danbainaixi', 'quanpingshenfa'];
@@ -3803,7 +3803,7 @@ function render() {
   // HUD
   drawHUD();
 
-  // 海克斯符文选择面板
+  // 克斯海符文选择面板
   if (runeSelectVisible) drawRuneSelect();
   // 符文技能按钮
   if (runes.length > 0 && state === STATE.PLAYING) drawRuneSkillBtns();
@@ -3848,7 +3848,7 @@ function onTouchStart(e) {
   _dbg.state = state;
   _dbg.sw = sw;
   e.preventDefault();
-  // 海克斯符文选择
+  // 克斯海符文选择
   for (const t of e.changedTouches) {
     if (_handleRuneClick(t.clientX, t.clientY)) return;
     // 符文技能按钮（支持多个）
@@ -3972,7 +3972,7 @@ window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 canvas.addEventListener('mousedown', e => {
   if (performance.now() - _lastTouchTime < 500) return;
   e.preventDefault();
-  // 海克斯符文选择
+  // 克斯海符文选择
   if (_handleRuneClick(e.clientX, e.clientY)) return;
   // 符文技能按钮（支持多个）
   for (const rn of runes) {
@@ -4040,7 +4040,7 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── 海克斯符文选择面板 ──
+// ── 克斯海符文选择面板 ──
 function drawRuneSelect() {
   const s = uiScale();
   // 半透明遮罩
@@ -4055,7 +4055,7 @@ function drawRuneSelect() {
   const total = _devDrafting ? _devDraftNeeded + picked : 3;
   const title = _devDrafting
     ? '🔧 开发模式 — 选择跳关符文 (' + (picked+1) + '/' + (picked+_devDraftNeeded) + ')'
-    : '击败 BOSS！选择海克斯符文 (' + (picked+1) + '/3)';
+    : '击败 BOSS！选择克斯海符文 (' + (picked+1) + '/3)';
   ctx.fillText(title, sw / 2, sh * 0.12);
 
   const runeKeys = _runeAvailable;
@@ -4217,7 +4217,7 @@ function _applyGeliyaBase() {
   player.radius = geliya._baseRadius;
 }
 
-// 海克斯符文选择点击处理
+// 克斯海符文选择点击处理
 function _handleRuneClick(cx, cy) {
   if (!runeSelectVisible || !ctx._runeSelectRects) return false;
   for (const r of ctx._runeSelectRects) {
