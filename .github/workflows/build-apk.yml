@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Mobile Apps
 
 on:
   push:
@@ -6,39 +6,67 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
-      - name: Install dependencies
-        run: npm install
+      - run: npm install
+      - run: npx cap add android
+      - run: npx cap sync
+      - run: cd android && ./gradlew assembleDebug
 
-      - name: Add Android platform
-        run: npx cap add android
-
-      - name: Sync web assets
-        run: npx cap sync
-
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: shooter-game-debug
+          name: 耄耋大乱斗-Android
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npx cap add ios
+      - run: npx cap sync
+
+      - name: Build iOS app (unsigned)
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            -derivedDataPath build
+
+      - name: Package IPA
+        run: |
+          APP_PATH=$(find ios/App/build -name "App.app" -path "*/iphoneos/*" | head -1)
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r 耄耋大乱斗-iOS.ipa Payload
+          rm -rf Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 耄耋大乱斗-iOS
+          path: 耄耋大乱斗-iOS.ipa
