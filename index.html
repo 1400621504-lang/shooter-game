@@ -2886,6 +2886,7 @@ class BgmManager {
     if (isBoss === this._bossMode) return;
     this._bossMode = isBoss;
     if (isBoss) {
+      this._savedTime = this.audios[this.currentIdx].currentTime;
       for (const a of this.audios) { a.pause(); }
       if (this.playing && !this._muted) {
         this._bossAudio.currentTime = 0;
@@ -2896,7 +2897,7 @@ class BgmManager {
       this._bossAudio.currentTime = 0;
       if (this.playing) {
         const a = this.audios[this.currentIdx];
-        a.currentTime = 0;
+        a.currentTime = this._savedTime || 0;
         a.play().catch(() => {});
       }
     }
@@ -3562,8 +3563,8 @@ function drawHUD() {
 
   // 哈气提醒（已移到 boss 图标下方）
 
-  // 自动射击切换按钮（左下角，仅触屏）
-  if (!isDesktop) {
+  // 自动射击切换按钮（左下角）
+  {
     const asSize = Math.max(44, 40 * s);
     const asX = 14;
     const asY = sh - asSize - 14;
@@ -3878,7 +3879,7 @@ function onTouchStart(e) {
   for (const t of e.changedTouches) {
     let handled = false;
     // 自动射击按钮（左下角）
-    if (!handled && !isDesktop && _autoShootBtn) {
+    if (!handled && _autoShootBtn) {
       const b = _autoShootBtn;
       if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
         autoShoot = !autoShoot;
@@ -3999,6 +4000,12 @@ canvas.addEventListener('mousedown', e => {
   if (state === STATE.OVER) {
     isDesktop = true;
     startGame();
+    return;
+  }
+  // 自动射击按钮（鼠标点击）
+  if (_autoShootBtn && e.clientX >= _autoShootBtn.x && e.clientX <= _autoShootBtn.x + _autoShootBtn.w &&
+      e.clientY >= _autoShootBtn.y && e.clientY <= _autoShootBtn.y + _autoShootBtn.h) {
+    autoShoot = !autoShoot;
     return;
   }
   audio.init();
