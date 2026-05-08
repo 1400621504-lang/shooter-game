@@ -26,10 +26,14 @@ jobs:
       - run: npx cap sync
       - run: cd android && ./gradlew assembleDebug
 
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: 耄耋大乱斗-Android
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: latest
+          name: 耄耋大乱斗 - 最新版本
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+          make_latest: true
 
   ios:
     runs-on: macos-latest
@@ -61,13 +65,14 @@ jobs:
       - name: Package IPA
         run: |
           APP_PATH=$(find ios/App/build -name "App.app" -type d | head -1)
-          echo "Found: $APP_PATH"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -r 耄耋大乱斗-iOS.ipa Payload
-          rm -rf Payload
 
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: 耄耋大乱斗-iOS
-          path: 耄耋大乱斗-iOS.ipa
+          tag_name: latest
+          files: 耄耋大乱斗-iOS.ipa
+          draft: false
+          prerelease: false
+          make_latest: true
