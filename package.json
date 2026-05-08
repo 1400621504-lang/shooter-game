@@ -1,15 +1,15 @@
 {
   "name": "shooter-game",
-  "version": "1.0.0",
-  "main": "sw.js",
+  "version": "1.4.1",
+  "description": "耄耋大乱斗 - 2D 俯视角双摇杆射击游戏",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:web": "python3 build.py",
+    "build:android": "npx cap add android && npx cap sync && cd android && ./gradlew assembleDebug"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
     "claude-skills-frontend": "^1.4.0"
   }
 }
