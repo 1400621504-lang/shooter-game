@@ -932,40 +932,43 @@ function onTouchStart(e) {
   for (const t of e.changedTouches) {
     if (state === STATE.START && _handleDevWaveClick(t.clientX, t.clientY)) return;
   }
-  if (state === STATE.START && !_devDrafting) { startGame(); }
-  if (state === STATE.OVER) { startGame(); }
+  if (state === STATE.START && !_devDrafting) { startGame(); return; }
+  if (state === STATE.OVER) { startGame(); return; }
 
   // 自动射击/符文技能/BGM 按钮
   for (const t of e.changedTouches) {
+    let handled = false;
+
     // 自动射击按钮（左下角）
-    if (!isDesktop && _autoShootBtn) {
+    if (!handled && !isDesktop && _autoShootBtn) {
       const b = _autoShootBtn;
       if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
         autoShoot = !autoShoot;
-        return;
+        handled = true;
       }
     }
     // 符文技能按钮
-    if (rune && rune._skillBtn && !rune.cfg.passive) {
+    if (!handled && rune && rune._skillBtn && !rune.cfg.passive) {
       const b = rune._skillBtn;
       if (t.clientX >= b.x && t.clientX <= b.x + b.w && t.clientY >= b.y && t.clientY <= b.y + b.h) {
         rune.activate(player, enemies.getActive(), particles, audio, getMoveAngle());
-        return;
+        handled = true;
       }
     }
-    if (bgm) {
+    // BGM 按钮
+    if (!handled && bgm) {
       for (const btn of [bgm._btnLeft, bgm._btnRight]) {
         if (!btn) continue;
         if (t.clientX >= btn.x && t.clientX <= btn.x + btn.w &&
             t.clientY >= btn.y && t.clientY <= btn.y + btn.h) {
           if (btn.action === 'mute') bgm.toggleMute();
           else if (btn.action === 'next') bgm.next();
-          t._handled = true;
+          handled = true;
           break;
         }
       }
     }
-    if (!t._handled) {
+    if (!handled) {
       moveJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
       shootJoy.tryStart(t.identifier, t.clientX, t.clientY, sw);
     }
